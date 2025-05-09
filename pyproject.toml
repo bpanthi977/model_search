@@ -15,4 +15,5 @@ dependencies = [
     "pyrallis>=0.3.1",
     "optuna>=4.3.0",
     "pathlib>=1.0.1",
+    "optuna-dashboard>=0.18.0",
 ]
