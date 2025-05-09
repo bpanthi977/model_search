@@ -1,7 +1,6 @@
 import os
 import pickle
 import pyrallis
-import hashlib
 import torch
 import optuna
 import sys
@@ -10,12 +9,6 @@ import dataclasses
 from dataset import load_dataset
 from model import train, evaluate_model, create_model
 from config import Config, TrainConfig
-
-def run_name(config: Config):
-    config_str = pyrallis.dump(config)
-    config_hash = hashlib.sha1(config_str.encode()).hexdigest()
-    return config_hash
-
 
 def create_train_config(study: optuna.Study, config: Config) -> TrainConfig:
     n_hidden_layers = study.suggest_categorical("hidden_layers", config.tuning.n_hidden_layers)
@@ -33,15 +26,15 @@ def create_train_config(study: optuna.Study, config: Config) -> TrainConfig:
     return train
 
 
-def train_eval(config: Config):
+def train_eval(config: Config, trial_id: int, callbacks):
     # Load data, train and evaluate
     dataset = load_dataset(config.dataset)
     model = create_model(config.train, dataset)
-    train(model, dataset, config.train)
+    train(model, dataset, config.train, callbacks)
     loss = evaluate_model(model, dataset, config.train.batch_size)
 
     # Save config and model
-    run_dir = config.logs_dir.joinpath(config.study_name).joinpath(run_name(config))
+    run_dir = config.logs_dir.joinpath(config.study_name).joinpath(f"{trial_id}")
     run_dir.mkdir(parents=True, exist_ok=True)
     with open(run_dir.joinpath("config.yaml"), "w") as f:
         f.write(pyrallis.dump(config))
@@ -52,28 +45,43 @@ def train_eval(config: Config):
     # Return the evaluation metric
     return loss
 
+def prev_trails_count(study: optuna.Study):
+    failed = 0
+    for t in study.trials:
+        if t.state == optuna.trial.TrialState.FAIL:
+            failed += 1
+
+    good = len(study.trials) - failed
+    return good
 
 if __name__ == "__main__":
     config = pyrallis.parse(config_class=Config)
 
     # Load or create study
     study_name = config.study_name
-    sqlite_file = config.logs_dir.joinpath(study_name).joinpath("optuna.db")
+    config.logs_dir.mkdir(parents=True, exist_ok=True)
+
+    sqlite_file = config.logs_dir.joinpath("optuna.db")
     storage = f"sqlite:///{sqlite_file}"
-    if not os.path.exists(sqlite_file):
-        study = optuna.create_study(direction="minimize", study_name=study_name, storage=storage)
-    else:
-        study = optuna.load_study(study_name=study_name, storage=storage)
+    study = optuna.create_study(direction="minimize", study_name=study_name, sampler=optuna.samplers.TPESampler(), storage=storage, load_if_exists=True)
 
     # Run the study
     def objective(trial: optuna.Study):
         train_config = create_train_config(trial, config)
         new_config = dataclasses.replace(config, train=train_config)
-        return train_eval(new_config)
+
+        def pruning_callback(epoch, loss):
+            trial.report(loss, epoch)
+            if trial.should_prune():
+                raise optuna.TrialPruned()
+
+        return train_eval(new_config, trial.number, callbacks=[pruning_callback])
 
 
-    study.optimize(objective, n_trials=config.tuning.trials)
+    n_trials = config.tuning.trials - prev_trails_count(study)
+    study.optimize(objective, n_trials=n_trials)
 
     # Save the study
-    with open(study_dir.joinpath("study.pkl"), "wb") as f:
+    study_dir = config.logs_dir.joinpath(study_name)
+    with open(study_dir.joinpath("optuna-study.pkl"), "wb") as f:
         pickle.dump(study, f)

@@ -25,6 +25,7 @@ class TuningConfig:
     n_hidden_layers: List[int]
     lr_values: List[float]
     batch_size_values: List[int]
+    trial_id: int = 0
 
 @dataclass
 class Config:

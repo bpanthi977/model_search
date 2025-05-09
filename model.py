@@ -44,7 +44,7 @@ def create_model(config: TrainConfig, dataset: Dataset):
     return model
 
 
-def train(model: MLP, dataset: Dataset, config: TrainConfig):
+def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
     dataset = TensorDataset(torch.from_numpy(dataset.X), torch.from_numpy(dataset.Y))
     dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
     losses = []
@@ -56,7 +56,7 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig):
     else:
         raise ValueError(f"Optimizer {config.optimizer} not supported")
 
-    for _ in progress_bar:
+    for epoch in progress_bar:
         epoch_loss = 0.0
         for batch_X, batch_Y in dataloader:
             batch_X = batch_X.to(device)
@@ -73,6 +73,8 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig):
         avg_epoch_loss = epoch_loss / len(dataloader)
         losses.append(avg_epoch_loss)
         progress_bar.set_postfix({"loss": f"{torch.sqrt(torch.tensor(avg_epoch_loss)).item():.4f}"})
+        for callback in callbacks:
+            callback(epoch, avg_epoch_loss)
 
 def evaluate_model(model: MLP, dataset: Dataset, batch_size: int):
     "Returns Mean Squared Error of model on (X,Y) dataset"
