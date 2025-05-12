@@ -5,6 +5,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from tqdm import tqdm
 from config import TrainConfig
 from dataset import Dataset
+import math
 
 class MLP(nn.Module):
     def __init__(self, device: torch.device, dimensions: List[int], activation_function):
@@ -47,7 +48,6 @@ def create_model(config: TrainConfig, dataset: Dataset):
 def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
     dataset = TensorDataset(torch.from_numpy(dataset.X), torch.from_numpy(dataset.Y))
     dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
-    losses = []
     progress_bar = tqdm(range(config.epoch), unit="epoch")
     device = model.get_device()
 
@@ -70,11 +70,11 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
 
             epoch_loss += loss.item()
 
-        avg_epoch_loss = epoch_loss / len(dataloader.dataset)
-        losses.append(avg_epoch_loss)
-        progress_bar.set_postfix({"loss": f"{torch.sqrt(torch.tensor(avg_epoch_loss)).item():.4f}"})
+        rmse = math.sqrt(epoch_loss / len(dataloader.dataset))
+
+        progress_bar.set_postfix({"loss": f"{rmse:.4f}"})
         for callback in callbacks:
-            callback(epoch, avg_epoch_loss)
+            callback(epoch, rmse)
 
 def evaluate_model(model: MLP, dataset: Dataset, batch_size: int):
     "Returns Mean Squared Error of model on (X,Y) dataset"
@@ -87,6 +87,6 @@ def evaluate_model(model: MLP, dataset: Dataset, batch_size: int):
         X = batch_X.to(device)
         Y = batch_Y.to(device)
         Y_pred = model.forward(X)
-        loss += torch.sqrt(torch.sum((Y - Y_pred)**2)).item()
+        loss += torch.sum((Y - Y_pred)**2).item()
 
-    return loss
+    return math.sqrt(loss / len(dataloader.dataset))
