@@ -13,9 +13,9 @@ class TrainConfig:
     device: str = field(metadata={"help": "Device to use. [cuda, cpu]"})
     optimizer: str = field(metadata={"help": "Optimizer to use. [adam]"})
     epoch: int = field(metadata={"help": "Number of epochs to train."})
-    hidden_layers: List[int] = field(default_factory=lambda:[], metadata={"help": "Hidden layers to use. Assigned automatically during hyperparameter tuning."})
-    lr: float = field(default=0.001, metadata={"help": "Learning rate. Assigned automatically during hyperparameter tuning."})
-    batch_size: int = field(default=1024, metadata={"help": "Batch size. Assigned automatically during hyperparameter tuning."})
+    hidden_layers: List[int] = field(default=None, metadata={"help": "Hidden layers to use. Assigned automatically during hyperparameter tuning."})
+    lr: float = field(default=None, metadata={"help": "Learning rate. Assigned automatically during hyperparameter tuning."})
+    batch_size: int = field(default=None, metadata={"help": "Batch size. Assigned automatically during hyperparameter tuning."})
 
 
 @dataclass

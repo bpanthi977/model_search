@@ -11,17 +11,18 @@ from model import train, evaluate_model, create_model
 from config import Config, TrainConfig
 
 def create_train_config(study: optuna.Study, config: Config) -> TrainConfig:
-    n_hidden_layers = study.suggest_categorical("hidden_layers", config.tuning.n_hidden_layers)
-    if n_hidden_layers > 0:
-        hidden_layer_size = study.suggest_categorical("hidden_layers_sizes", config.tuning.hidden_layers_sizes)
-        hidden_layers = [hidden_layer_size] * n_hidden_layers
-    else:
-        hidden_layers = []
+    if not config.train.hidden_layers:
+        n_hidden_layers = study.suggest_categorical("hidden_layers", config.tuning.n_hidden_layers)
+        if n_hidden_layers > 0:
+            hidden_layer_size = study.suggest_categorical("hidden_layers_sizes", config.tuning.hidden_layers_sizes)
+            hidden_layers = [hidden_layer_size] * n_hidden_layers
+        else:
+            hidden_layers = []
 
     train = dataclasses.replace(config.train) # clone
-    train.hidden_layers = hidden_layers
-    train.lr = study.suggest_categorical("lr", config.tuning.lr_values)
-    train.batch_size = study.suggest_categorical("batch_size", config.tuning.batch_size_values)
+    train.hidden_layers = config.train.hidden_layers or hidden_layers
+    train.lr = config.train.lr or study.suggest_categorical("lr", config.tuning.lr_values)
+    train.batch_size = config.train.batch_size or study.suggest_categorical("batch_size", config.tuning.batch_size_values)
 
     return train
 
