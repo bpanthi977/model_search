@@ -70,7 +70,7 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
 
             epoch_loss += loss.item()
 
-        avg_epoch_loss = epoch_loss / len(dataloader)
+        avg_epoch_loss = epoch_loss / len(dataloader.dataset)
         losses.append(avg_epoch_loss)
         progress_bar.set_postfix({"loss": f"{torch.sqrt(torch.tensor(avg_epoch_loss)).item():.4f}"})
         for callback in callbacks:
