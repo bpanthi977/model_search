@@ -73,8 +73,9 @@ if __name__ == "__main__":
 
         def pruning_callback(epoch, loss):
             trial.report(loss, epoch)
-            if trial.should_prune():
-                raise optuna.TrialPruned()
+            if config.tuning.enable_prune:
+                if trial.should_prune():
+                    raise optuna.TrialPruned()
 
         return train_eval(new_config, trial.number, callbacks=[pruning_callback])
 
