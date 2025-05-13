@@ -1,0 +1,19 @@
+study_name: "sfd-01"
+
+dataset:
+  db_file: dataset/sfd-all.h5
+  label: CaclElemShapeFunctionDerivatives
+
+train:
+  epoch: 600
+  activation: "relu"
+  device: "cuda"
+  optimizer: "adam"
+
+tuning:
+  trials: 12
+  hidden_layers_sizes: [128, 256, 512, 1024]
+  n_hidden_layers: [1,2,3]
+  lr_values: [0.001]
+  batch_size_values: [1024]
+  enable_prune: false
