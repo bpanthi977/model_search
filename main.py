@@ -5,6 +5,8 @@ import torch
 import optuna
 import sys
 import dataclasses
+import argparse
+import datetime
 
 from dataset import load_dataset
 from model import train, evaluate_model, create_model
@@ -26,8 +28,17 @@ def create_train_config(study: optuna.Study, config: Config) -> TrainConfig:
 
     return train
 
+def validate_config(config: Config):
+    """Just validate the training config."""
+    train = config.train
+    if train.hidden_layers == None:
+        raise "--train.hidden_layers missing"
+    if train.lr == None:
+        raise "--train.lr missing"
+    if train.batch_size == None:
+        raise "--train.batch_size missing"
 
-def train_eval(config: Config, trial_id: int, callbacks):
+def train_eval(config: Config, trial_id: int | str, callbacks):
     # Load data, train and evaluate
     dataset = load_dataset(config.dataset)
     model = create_model(config.train, dataset)
@@ -56,7 +67,22 @@ def prev_trails_count(study: optuna.Study):
     return good
 
 if __name__ == "__main__":
-    config = pyrallis.parse(config_class=Config)
+    parser = argparse.ArgumentParser(
+        prog="Model Tuning",
+        description="Trains and tunes hyperparameters of MLP model",
+    )
+    parser.add_argument('-c', '--config')
+    parser.add_argument('--tune', action='store_true')
+
+    (args, _) = parser.parse_known_args()
+    config = pyrallis.parse(config_class=Config, config_path=args.config)
+
+    if not args.tune: # just train
+        validate_config(config)
+        now = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        loss = train_eval(config, trial_id=now, callbacks=[])
+        print(f"Loss = {loss}")
+        exit(1)
 
     # Load or create study
     study_name = config.study_name
