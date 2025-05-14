@@ -48,7 +48,7 @@ def create_model(config: TrainConfig, dataset: Dataset):
 def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
     dataset = TensorDataset(torch.from_numpy(dataset.X), torch.from_numpy(dataset.Y))
     dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
-    progress_bar = tqdm(range(config.epoch), unit="epoch")
+    epoch_bar = tqdm(range(config.epoch), unit="epoch")
     device = model.get_device()
 
     if config.optimizer == 'adam':
@@ -56,9 +56,11 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
     else:
         raise ValueError(f"Optimizer {config.optimizer} not supported")
 
-    for epoch in progress_bar:
+    for epoch in epoch_bar:
         epoch_loss = 0.0
-        for batch_X, batch_Y in dataloader:
+
+        batch_bar = tqdm(dataloader, unit="batch", leave=False)
+        for batch_X, batch_Y in batch_bar:
             batch_X = batch_X.to(device)
             batch_Y = batch_Y.to(device)
 
@@ -69,10 +71,11 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
             optimizer.step()
 
             epoch_loss += loss.item()
+            batch_bar.set_postfix({"loss": f"{loss.item():.4f}"})
 
         rmse = math.sqrt(epoch_loss / len(dataloader.dataset))
 
-        progress_bar.set_postfix({"loss": f"{rmse:.4f}"})
+        epoch_bar.set_postfix({"loss": f"{rmse:.4f}"})
         for callback in callbacks:
             callback(epoch, rmse)
 
