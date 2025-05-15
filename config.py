@@ -16,6 +16,8 @@ class TrainConfig:
     hidden_layers: List[int] = field(default=None, metadata={"help": "Hidden layers to use. Assigned automatically during hyperparameter tuning."})
     lr: float = field(default=None, metadata={"help": "Learning rate. Assigned automatically during hyperparameter tuning."})
     batch_size: int = field(default=None, metadata={"help": "Batch size. Assigned automatically during hyperparameter tuning."})
+    loss: str = field(default=None, metadata={"help": "Loss function: ['rmse', 'rmrse]"})
+    output_scale_factor: float = field(default=None, metadata={"help": "Factor to scale output from the last layer"})
 
 
 @dataclass

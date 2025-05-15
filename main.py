@@ -37,13 +37,15 @@ def validate_config(config: Config):
         raise "--train.lr missing"
     if train.batch_size == None:
         raise "--train.batch_size missing"
+    if train.loss == None:
+        raise "--train.loss is missing"
 
 def train_eval(config: Config, trial_id: int | str, callbacks):
     # Load data, train and evaluate
     dataset = load_dataset(config.dataset)
     model = create_model(config.train, dataset)
     train(model, dataset, config.train, callbacks)
-    loss = evaluate_model(model, dataset, config.train.batch_size)
+    loss = evaluate_model(model, dataset, config.train)
 
     # Save config and model
     run_dir = config.logs_dir.joinpath(config.study_name).joinpath(f"{trial_id}")
