@@ -7,6 +7,7 @@ import sys
 import dataclasses
 import argparse
 import datetime
+import csv
 
 from dataset import load_dataset
 from model import train, evaluate_model, create_model
@@ -41,10 +42,14 @@ def validate_config(config: Config):
         raise "--train.loss is missing"
 
 def train_eval(config: Config, trial_id: int | str, callbacks):
+    loss_curve = []
+    def log_loss_callback(epoch, loss):
+        loss_curve.append([epoch + 1, loss])
+
     # Load data, train and evaluate
     dataset = load_dataset(config.dataset)
     model = create_model(config.train, dataset)
-    train(model, dataset, config.train, callbacks)
+    train(model, dataset, config.train, [log_loss_callback, *callbacks])
     loss = evaluate_model(model, dataset, config.train)
 
     # Save config and model
@@ -55,6 +60,12 @@ def train_eval(config: Config, trial_id: int | str, callbacks):
 
     model_script = torch.jit.script(model.to(torch.device('cpu')).double())
     model_script.save(run_dir.joinpath("model.pt"))
+
+    with open(run_dir.joinpath("loss.csv"), "w", newline='') as f:
+        csv.writer(f).writerows(loss_curve)
+
+    with open(run_dir.joinpath("eval_loss"), "w", newline='') as f:
+        f.write(str(loss))
 
     # Return the evaluation metric
     return loss
@@ -81,6 +92,7 @@ if __name__ == "__main__":
 
     if not args.tune: # just train
         validate_config(config)
+        config.tuning = None
         now = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         loss = train_eval(config, trial_id=now, callbacks=[])
         print(f"Loss = {loss}")
