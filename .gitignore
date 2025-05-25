@@ -2,3 +2,6 @@
 /dataset/
 /logs/
 /.vscode/
+scripts/.ipynb_checkpoints
+/scripts/*.ipynb
+/scripts/*.svg
