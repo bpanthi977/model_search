@@ -16,4 +16,6 @@ dependencies = [
     "optuna>=4.3.0",
     "pathlib>=1.0.1",
     "optuna-dashboard>=0.18.0",
+    "jupytext>=1.17.1",
+    "seaborn>=0.13.2",
 ]
