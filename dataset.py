@@ -1,21 +1,32 @@
+"""Dataset class and load_dataset."""
 import h5py
 import numpy as np
 from config import DatasetConfig
 
 class Dataset():
+    """
+    Storage class for train and validation data.
+
+    The data are np.array
+    """
+
     def __init__(self, trainX, trainY, validateX, validateY):
+        """Initialize."""
         self.trainX = trainX
         self.trainY = trainY
         self.validateX = validateX
         self.validateY = validateY
 
     def input_dim(self):
+        """Input dimension."""
         return self.trainX.shape[-1]
 
     def output_dim(self):
+        """Output dimension."""
         return self.trainY.shape[-1]
 
 def get_label(db, labels):
+    """Return the first group/label available in the h5 db file."""
     for label in labels:
         if label in db:
             return label
@@ -23,6 +34,12 @@ def get_label(db, labels):
     return False
 
 def load_dataset(config: DatasetConfig):
+    """
+    Load the dataset stored as numpy arrays.
+
+    If train and validate labels are not separately defined
+    same data is used for both.
+    """
     db = h5py.File(config.db_file)
     label = config.label
 
