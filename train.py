@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
 from tqdm import tqdm
+from datetime import datetime
 
 from config import TrainConfig, OptimizerConfig
 from dataset import Dataset
@@ -49,6 +50,7 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
         model.train()
         total_loss = 0.0
         batch_bar = tqdm(train_dataloader, unit="batch", leave=False)
+        start = datetime.now()
         for batch_X, batch_Y in batch_bar:
             batch_X = batch_X.to(device)
             batch_Y = batch_Y.to(device)
@@ -63,11 +65,13 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
             mean_loss = loss.item() / batch_X.shape[0]
             batch_bar.set_postfix({f"{config.loss}": f"{mean_loss:.4f}"})
 
+        train_time = (datetime.now() - start).microseconds / 1000.0
         mean_train_loss = total_loss / len(train_dataloader.dataset)
 
         model.eval()
         batch_bar = tqdm(val_dataloader, unit="batch", leave=False)
         total_loss = 0.0
+        start = datetime.now()
         for batch_X, batch_Y in batch_bar:
             batch_X = batch_X.to(device)
             batch_Y = batch_Y.to(device)
@@ -78,6 +82,7 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
             mean_loss = loss.item() / batch_X.shape[0]
             batch_bar.set_postfix({f"{config.loss}": f"{mean_loss:.4f}"})
 
+        val_time = (datetime.now() - start).microseconds / 1000.0
         mean_val_loss = total_loss / len(val_dataloader.dataset)
 
         epoch_bar.set_postfix({
@@ -86,4 +91,10 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
         })
 
         for callback in callbacks:
-            callback({"epoch": epoch, "train_loss": mean_train_loss, "val_loss": mean_val_loss})
+            callback({
+                "epoch": epoch,
+                "train_loss": mean_train_loss,
+                "val_loss": mean_val_loss,
+                "train_time": train_time,
+                "val_time": val_time
+            })

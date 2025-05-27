@@ -6,7 +6,7 @@ import optuna
 import sys
 import dataclasses
 import argparse
-import datetime
+from datetime import datetime
 import csv
 
 from dataset import load_dataset
@@ -30,8 +30,16 @@ def create_train_config(study: optuna.Study, config: Config) -> TrainConfig:
 
     return train
 
+def format_duration(d):
+    ts = d.total_seconds()
+    h = ts // (60*60)
+    m = (ts - h * 60 * 60) // 60
+    s = ts - h * 60 * 60 - m * 60
+    return f"{h}:{m}:{s}"
+
 def train_log(config: Config, trial_id: int | str, callbacks):
     # Save config and loss
+    start = datetime.now()
     run_dir = config.logs_dir.joinpath(config.study_name).joinpath(f"{trial_id}")
     run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -47,11 +55,12 @@ def train_log(config: Config, trial_id: int | str, callbacks):
         w_val = csv.writer(f_val)
 
         def callback(info):
+            nonlocal final_val_loss
+
             epoch = info["epoch"]
-            train_loss = info["train_loss"]
             final_val_loss = info["val_loss"]
-            w_train.writerow([epoch+1, train_loss])
-            w_val.writerow([epoch+1, final_val_loss])
+            w_train.writerow([epoch+1, info["train_loss"], info["train_time"]])
+            w_val.writerow([epoch+1, final_val_loss, info["val_time"]])
             f_train.flush()
             f_val.flush()
 
@@ -64,6 +73,14 @@ def train_log(config: Config, trial_id: int | str, callbacks):
     model_script = torch.jit.script(model.to(torch.device('cpu')).double())
     model_script.save(run_dir.joinpath("model.pt"))
 
+    with open(run_dir.joinpath("info.csv"), "w", newline='') as f:
+        csv.writer(f).writerow(
+            [["start_time", start.strftime("%Y%m%d-%H%M%S")],
+             ["end_time", datetime.now().strftime("%Y%m%d-%H:%M:%S")],
+             ["total_time", format_duration(datetime.now() - start)],
+             ["val_loss", final_val_loss],
+             ["loss", config.loss]]
+        )
     # Return the evaluation metric
     return final_val_loss
 
@@ -88,7 +105,7 @@ if __name__ == "__main__":
     config = pyrallis.parse(config_class=Config, config_path=args.config, args=args_rest)
 
     if not args.tune: # just train
-        now = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        now = datetime.now().strftime("%Y%m%d-%H%M%S")
         loss = train_log(config, trial_id=now, callbacks=[])
         print(f"Loss = {loss}")
         exit(0)
