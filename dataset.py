@@ -1,4 +1,5 @@
 """Dataset class and load_dataset."""
+import torch
 import h5py
 import numpy as np
 from config import DatasetConfig
@@ -7,7 +8,7 @@ class Dataset():
     """
     Storage class for train and validation data.
 
-    The data are np.array
+    The data are torch.tensor
     """
 
     def __init__(self, trainX, trainY, validateX, validateY):
@@ -35,7 +36,7 @@ def get_label(db, labels):
 
 def load_dataset(config: DatasetConfig):
     """
-    Load the dataset stored as numpy arrays.
+    Load the dataset stored as torch.tensors in `cpu`.
 
     If train and validate labels are not separately defined
     same data is used for both.
@@ -43,21 +44,20 @@ def load_dataset(config: DatasetConfig):
     db = h5py.File(config.db_file)
     label = config.label
 
-
     train = get_label(db, [label+'_train', label])
     if not train:
         raise ValueError(f"label {label} or {label}_train not found in db file")
 
-    train_X = np.array(db[train]['input'], dtype=np.float32)
-    train_Y = np.array(db[train]['output'], dtype=np.float32)
+    train_X = torch.from_numpy(np.array(db[train]['input'], dtype=np.float32))
+    train_Y = torch.from_numpy(np.array(db[train]['output'], dtype=np.float32))
 
     val = get_label(db, [label+'_validate', label])
     if val == train:
         validate_X = train_X
         validate_Y = train_Y
     elif val:
-        validate_X = np.array(db[val]['input'], dtype=np.float32)
-        validate_Y = np.array(db[val]['output'], dtype=np.float32)
+        validate_X = torch.from_numpy(np.array(db[val]['input'], dtype=np.float32))
+        validate_Y = torch.from_numpy(np.array(db[val]['output'], dtype=np.float32))
     else:
         raise ValueError(f"label {label} or {label}_validate not found in db file")
 

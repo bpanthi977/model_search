@@ -42,10 +42,10 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
 
     Calls each function in `callbacks` with a dict of epoch, {train, val}_{loss, time}.
     """
-    train_dataset = TensorDataset(torch.from_numpy(dataset.trainX), torch.from_numpy(dataset.trainY))
+    train_dataset = TensorDataset(dataset.trainX, dataset.trainY)
     train_dataloader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
 
-    val_dataset = TensorDataset(torch.from_numpy(dataset.validateX), torch.from_numpy(dataset.validateY))
+    val_dataset = TensorDataset(dataset.validateX, dataset.validateY)
     val_dataloader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False)
 
     epoch_bar = tqdm(range(config.epoch), unit="epoch")
