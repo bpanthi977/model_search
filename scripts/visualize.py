@@ -34,7 +34,7 @@ from dataset import load_dataset
 from config import DatasetConfig
 
 # %%
-dataset = load_dataset(DatasetConfig(db_file="../dataset/HGF-all.h5", label="HGF"))
+dataset = load_dataset(DatasetConfig(db_file="../dataset/HGF-20p.h5", label="HGF_validate"))
 
 # %%
 # Representative Data

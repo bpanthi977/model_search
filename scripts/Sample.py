@@ -35,7 +35,7 @@ dataset = load_dataset(config)
 
 # %%
 total_rows = dataset.X.shape[0]
-proportion = 0.5 # 5%
+proportion = 0.20 # 20%
 sample_count = math.ceil(total_rows * proportion)
 train_count = math.ceil(sample_count * 0.8)
 

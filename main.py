@@ -10,7 +10,8 @@ import datetime
 import csv
 
 from dataset import load_dataset
-from model import train, evaluate_model, create_model
+from model import create_model
+from train import train
 from config import Config, TrainConfig
 
 def create_train_config(study: optuna.Study, config: Config) -> TrainConfig:
@@ -29,46 +30,42 @@ def create_train_config(study: optuna.Study, config: Config) -> TrainConfig:
 
     return train
 
-def validate_config(config: Config):
-    """Just validate the training config."""
-    train = config.train
-    if train.hidden_layers == None:
-        raise "--train.hidden_layers missing"
-    if train.lr == None:
-        raise "--train.lr missing"
-    if train.batch_size == None:
-        raise "--train.batch_size missing"
-    if train.loss == None:
-        raise "--train.loss is missing"
-
-def train_eval(config: Config, trial_id: int | str, callbacks):
-    loss_curve = []
-    def log_loss_callback(epoch, loss):
-        loss_curve.append([epoch + 1, loss])
-
-    # Load data, train and evaluate
-    dataset = load_dataset(config.dataset)
-    model = create_model(config.train, dataset)
-    train(model, dataset, config.train, [log_loss_callback, *callbacks])
-    loss = evaluate_model(model, dataset, config.train)
-
-    # Save config and model
+def train_log(config: Config, trial_id: int | str, callbacks):
+    # Save config and loss
     run_dir = config.logs_dir.joinpath(config.study_name).joinpath(f"{trial_id}")
     run_dir.mkdir(parents=True, exist_ok=True)
+
+    final_val_loss = None
     with open(run_dir.joinpath("config.yaml"), "w") as f:
         f.write(pyrallis.dump(config))
 
+    with (
+            open(run_dir.joinpath("train_loss.csv"), "w", newline='') as f_train,
+            open(run_dir.joinpath("val_loss.csv"), "w", newline='') as f_val
+    ):
+        w_train = csv.writer(f_train)
+        w_val = csv.writer(f_val)
+
+        def callback(info):
+            epoch = info["epoch"]
+            train_loss = info["train_loss"]
+            final_val_loss = info["val_loss"]
+            w_train.writerow([epoch+1, train_loss])
+            w_val.writerow([epoch+1, final_val_loss])
+            f_train.flush()
+            f_val.flush()
+
+        # Load data, train and evaluate
+        dataset = load_dataset(config.dataset)
+        model = create_model(config.train, dataset)
+        train(model, dataset, config.train, [callback, *callbacks])
+
+    # Save model
     model_script = torch.jit.script(model.to(torch.device('cpu')).double())
     model_script.save(run_dir.joinpath("model.pt"))
 
-    with open(run_dir.joinpath("loss.csv"), "w", newline='') as f:
-        csv.writer(f).writerows(loss_curve)
-
-    with open(run_dir.joinpath("eval_loss"), "w", newline='') as f:
-        f.write(str(loss))
-
     # Return the evaluation metric
-    return loss
+    return final_val_loss
 
 def prev_trails_count(study: optuna.Study):
     failed = 0
@@ -87,16 +84,14 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--config')
     parser.add_argument('--tune', action='store_true')
 
-    (args, _) = parser.parse_known_args()
-    config = pyrallis.parse(config_class=Config, config_path=args.config)
+    (args, args_rest) = parser.parse_known_args()
+    config = pyrallis.parse(config_class=Config, config_path=args.config, args=args_rest)
 
     if not args.tune: # just train
-        validate_config(config)
-        config.tuning = None
         now = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        loss = train_eval(config, trial_id=now, callbacks=[])
+        loss = train_log(config, trial_id=now, callbacks=[])
         print(f"Loss = {loss}")
-        exit(1)
+        exit(0)
 
     # Load or create study
     study_name = config.study_name
@@ -117,8 +112,7 @@ if __name__ == "__main__":
                 if trial.should_prune():
                     raise optuna.TrialPruned()
 
-        return train_eval(new_config, trial.number, callbacks=[pruning_callback])
-
+        return train_log(new_config, trial.number, callbacks=[pruning_callback])
 
     n_trials = config.tuning.trials - prev_trails_count(study)
     study.optimize(objective, n_trials=n_trials)
@@ -127,3 +121,5 @@ if __name__ == "__main__":
     study_dir = config.logs_dir.joinpath(study_name)
     with open(study_dir.joinpath("optuna-study.pkl"), "wb") as f:
         pickle.dump(study, f)
+
+    exit(0)
