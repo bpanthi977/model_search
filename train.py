@@ -57,7 +57,7 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
     for epoch in epoch_bar:
 
         model.train()
-        total_loss = 0.0
+        total_loss = torch.tensor(0.0).to(device)
         batch_bar = tqdm(train_dataloader, unit="batch", leave=False)
         torch.cuda.synchronize()
         start = datetime.now()
@@ -71,17 +71,15 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
             loss.backward()
             optimizer.step()
 
-            total_loss += loss.item()
-            mean_loss = loss.item() / batch_X.shape[0]
-            batch_bar.set_postfix({f"{config.loss}": f"{mean_loss:.4f}"})
+            total_loss += loss.detach()
 
         torch.cuda.synchronize()
         train_time = (datetime.now() - start).microseconds / 1000.0
-        mean_train_loss = total_loss / len(train_dataloader.dataset)
+        mean_train_loss = total_loss.item() / len(train_dataloader.dataset)
 
         model.eval()
         batch_bar = tqdm(val_dataloader, unit="batch", leave=False)
-        total_loss = 0.0
+        total_loss = torch.tensor(0.0).to(device)
         start = datetime.now()
         for batch_X, batch_Y in batch_bar:
             batch_X = batch_X.to(device)
@@ -89,13 +87,11 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
             Y_pred = model.forward(batch_X)
             loss = loss_fn(Y_pred, batch_Y)
 
-            total_loss += loss.item()
-            mean_loss = loss.item() / batch_X.shape[0]
-            batch_bar.set_postfix({f"{config.loss}": f"{mean_loss:.4f}"})
+            total_loss += loss.detach()
 
         torch.cuda.synchronize()
         val_time = (datetime.now() - start).microseconds / 1000.0
-        mean_val_loss = total_loss / len(val_dataloader.dataset)
+        mean_val_loss = total_loss.item() / len(val_dataloader.dataset)
 
         epoch_bar.set_postfix({
             f"Train {config.loss}": f"{mean_train_loss:.4f}",
