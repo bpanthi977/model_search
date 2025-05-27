@@ -59,6 +59,7 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
         model.train()
         total_loss = 0.0
         batch_bar = tqdm(train_dataloader, unit="batch", leave=False)
+        torch.cuda.synchronize()
         start = datetime.now()
         for batch_X, batch_Y in batch_bar:
             batch_X = batch_X.to(device)
@@ -74,6 +75,7 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
             mean_loss = loss.item() / batch_X.shape[0]
             batch_bar.set_postfix({f"{config.loss}": f"{mean_loss:.4f}"})
 
+        torch.cuda.synchronize()
         train_time = (datetime.now() - start).microseconds / 1000.0
         mean_train_loss = total_loss / len(train_dataloader.dataset)
 
@@ -91,6 +93,7 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
             mean_loss = loss.item() / batch_X.shape[0]
             batch_bar.set_postfix({f"{config.loss}": f"{mean_loss:.4f}"})
 
+        torch.cuda.synchronize()
         val_time = (datetime.now() - start).microseconds / 1000.0
         mean_val_loss = total_loss / len(val_dataloader.dataset)
 
