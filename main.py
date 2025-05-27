@@ -2,6 +2,8 @@
 import argparse
 import pyrallis
 from datetime import datetime
+import random
+import string
 
 from train import train_log
 from tune import tune
@@ -9,6 +11,7 @@ from config import Config
 
 
 if __name__ == "__main__":
+    # Parse argument, config and show help
     parser = argparse.ArgumentParser(
         prog="Model Tuning",
         description="Trains and tunes hyperparameters of MLP model",
@@ -31,9 +34,13 @@ if __name__ == "__main__":
         print(f"Failure to parse config file. Details:\n{e}")
         exit(1)
 
+    # Run train or tuning
     if not args.tune: # just train
-        now = datetime.now().strftime("%Y%m%d-%H%M%S")
-        loss = train_log(config, trial_id=now, callbacks=[])
+        ## Generate a random suffix so that train started at same time don't clash
+        random_suffix = ''.join([random.choice(string.ascii_letters) for i in range(4)])
+        trial_name = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + random_suffix
+
+        loss = train_log(config, trial_id=trial_name, callbacks=[])
         print(f"Loss = {loss}")
     else:
         tune(config)

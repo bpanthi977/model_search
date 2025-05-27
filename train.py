@@ -126,6 +126,7 @@ def train_log(config: Config, trial_id: int | str, callbacks):
     final_val_loss = None
     with open(run_dir.joinpath("config.yaml"), "w") as f:
         f.write(pyrallis.dump(config))
+        print(config)
 
     with (
             open(run_dir.joinpath("train_loss.csv"), "w", newline='') as f_train,
