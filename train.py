@@ -110,9 +110,9 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
 def format_duration(d):
     """Format to h:m:s format."""
     ts = d.total_seconds()
-    h = ts // (60*60)
-    m = (ts - h * 60 * 60) // 60
-    s = ts - h * 60 * 60 - m * 60
+    h = int(ts // (60*60))
+    m = int((ts - h * 60 * 60) // 60)
+    s = int(ts - h * 60 * 60 - m * 60)
     return f"{h}:{m}:{s}"
 
 def train_log(config: Config, trial_id: int | str, callbacks):
@@ -154,8 +154,8 @@ def train_log(config: Config, trial_id: int | str, callbacks):
     model_script.save(run_dir.joinpath("model.pt"))
 
     with open(run_dir.joinpath("info.csv"), "w", newline='') as f:
-        csv.writer(f).writerow(
-            [["start_time", start.strftime("%Y%m%d-%H%M%S")],
+        csv.writer(f).writerows(
+            [["start_time", start.strftime("%Y%m%d-%H:%M:%S")],
              ["end_time", datetime.now().strftime("%Y%m%d-%H:%M:%S")],
              ["total_time", format_duration(datetime.now() - start)],
              ["val_loss", final_val_loss],
