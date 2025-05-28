@@ -5,7 +5,6 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "python-lsp-server>=1.12.2",
     "h5py>=3.13.0",
     "jupyter>=1.1.1",
     "matplotlib>=3.10.1",
@@ -18,5 +17,5 @@ dependencies = [
     "optuna-dashboard>=0.18.0",
     "jupytext>=1.17.1",
     "seaborn>=0.13.2",
-    "python-language-server[all]>=0.36.2",
+    "pyright>=1.1.401",
 ]
