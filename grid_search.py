@@ -8,7 +8,7 @@ import csv
 import logs
 from config import Config
 
-def run_train(config_file, extra):
+def run_train(config_file, extra) -> subprocess.Popen:
     """Run training script."""
     command_args = ["python", "main.py", "--config", config_file, *[str(arg) for arg in extra]]
     process = subprocess.Popen(
@@ -20,6 +20,7 @@ def run_train(config_file, extra):
     )
     print(process.pid, ' '.join(command_args))
 
+    return process
 
 def check_trial(prev_trials, extra):
     checks = {}
@@ -41,9 +42,9 @@ if __name__ == '__main__':
     )
     parser.add_argument('-c', '--config')
     parser.add_argument('-g', '--grid')
+    parser.add_argument('-w', '--wait', action='store_true')
     args = parser.parse_args()
 
-    print(args)
     config_file = args.config
     grid_file = args.grid
 
@@ -53,6 +54,7 @@ if __name__ == '__main__':
 
     trials = logs.read_study(Path("./logs/").joinpath(config.study_name))
 
+    processes: list[subprocess.Popen] = []
     def rec(grid, params):
         """Recursively explore the grid and at the end run_train."""
         if len(grid) == 0:
@@ -60,7 +62,9 @@ if __name__ == '__main__':
                 print("Skipped ", ' '.join([str(arg) for arg in params]))
                 return
             else:
-                return run_train(config_file, params)
+                p = run_train(config_file, params)
+                processes.append(p)
+                return
 
 
         param = grid[0]
@@ -72,3 +76,7 @@ if __name__ == '__main__':
             rec(other_params, [flag, value, *params])
 
     rec(grid, [])
+
+    if args.wait:
+        for p in processes:
+            p.wait()

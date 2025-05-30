@@ -44,6 +44,9 @@ def read_run(trial_dir: Path):
 
 def read_study(study_dir: Path):
     trials = []
+    if not study_dir.exists():
+        return []
+
     for d in study_dir.iterdir():
         if d.is_dir():
             t = read_run(d)
