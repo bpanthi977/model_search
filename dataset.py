@@ -48,16 +48,16 @@ def load_dataset(config: DatasetConfig):
     if not train:
         raise ValueError(f"label {label} or {label}_train not found in db file")
 
-    train_X = torch.from_numpy(np.array(db[train]['input'], dtype=np.float32))
-    train_Y = torch.from_numpy(np.array(db[train]['output'], dtype=np.float32))
+    train_X = torch.from_numpy(np.array(db[train]['input'], dtype=np.float64))
+    train_Y = torch.from_numpy(np.array(db[train]['output'], dtype=np.float64))
 
     val = get_label(db, [label+'_validate', label])
     if val == train:
         validate_X = train_X
         validate_Y = train_Y
     elif val:
-        validate_X = torch.from_numpy(np.array(db[val]['input'], dtype=np.float32))
-        validate_Y = torch.from_numpy(np.array(db[val]['output'], dtype=np.float32))
+        validate_X = torch.from_numpy(np.array(db[val]['input'], dtype=np.float64))
+        validate_Y = torch.from_numpy(np.array(db[val]['output'], dtype=np.float64))
     else:
         raise ValueError(f"label {label} or {label}_validate not found in db file")
 
