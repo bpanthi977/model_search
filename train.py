@@ -115,7 +115,7 @@ def format_duration(d):
     s = int(ts - h * 60 * 60 - m * 60)
     return f"{h}:{m}:{s}"
 
-def train_log(config: Config, trial_id: int | str, callbacks):
+def train_log(config: Config, trial_id: int | str, callbacks) -> float:
     """Start training and save config, model, loss curves to logs_dir/study_name/trail_id directory."""
     # Save config and loss
     start = datetime.now()
