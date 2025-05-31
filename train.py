@@ -2,6 +2,7 @@
 
 import csv
 from datetime import datetime
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -115,7 +116,7 @@ def format_duration(d):
     s = int(ts - h * 60 * 60 - m * 60)
     return f"{h}:{m}:{s}"
 
-def train_log(config: Config, trial_id: int | str, callbacks) -> float:
+def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional[Dataset]) -> float:
     """Start training and save config, model, loss curves to logs_dir/study_name/trail_id directory."""
     # Save config and loss
     start = datetime.now()
@@ -145,7 +146,9 @@ def train_log(config: Config, trial_id: int | str, callbacks) -> float:
             f_val.flush()
 
         # Load data, train and evaluate
-        dataset = load_dataset(config.dataset)
+        if not dataset:
+            dataset = load_dataset(config.dataset)
+
         model = create_model(config.train, dataset)
         train(model, dataset, config.train, [callback, *callbacks])
 

@@ -1,26 +1,44 @@
 """Run hyperparameter gridsearch for HGF."""
+from multiprocessing import Process
 import subprocess
 from pathlib import Path
 import pyrallis
 import argparse
 import csv
+import torch.multiprocessing as mp
 
 import logs
-from config import Config
+from config import Config, DatasetConfig
+from dataset import load_dataset, Dataset
+from main import train
 
-def run_train(config_file, extra) -> subprocess.Popen:
+def load_shared_dataset(config: DatasetConfig):
+    dataset = load_dataset(config)
+    return Dataset(dataset.trainX.share_memory_(), dataset.trainY.share_memory_(),
+                   dataset.validateX.share_memory_(), dataset.validateY.share_memory_())
+
+def run_train(config_file, extra, dataset) -> subprocess.Popen | mp.Process:
     """Run training script."""
-    command_args = ["python", "main.py", "--config", config_file, *[str(arg) for arg in extra]]
-    process = subprocess.Popen(
-        command_args,
-        stdout=subprocess.DEVNULL,
-        stdin=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True
-    )
-    print(process.pid, ' '.join(command_args))
 
-    return process
+    extra_args = [str(arg) for arg in extra]
+    if dataset:
+        config = pyrallis.parse(config_class=Config, config_path=config_file, args=extra_args)
+        process = mp.Process(target=train, args=(config, dataset))
+        process.start()
+        print(process.pid, ' '.join(extra_args))
+        return process
+    else:
+        command_args = ["python", "main.py", "--config", config_file, *extra_args]
+        process = subprocess.Popen(
+            command_args,
+            stdout=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+        print(process.pid, ' '.join(command_args))
+
+        return process
 
 def check_trial(prev_trials, extra):
     checks = {}
@@ -43,10 +61,12 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--config')
     parser.add_argument('-g', '--grid')
     parser.add_argument('-w', '--wait', action='store_true')
+    parser.add_argument('-sm', '--shared-memory', action='store_true')
     args = parser.parse_args()
 
     config_file = args.config
     grid_file = args.grid
+    shared_memory = args.shared_memory
 
     config = pyrallis.parse(config_class=Config, config_path=config_file, args=[])
     with open(grid_file, "r") as f:
@@ -54,7 +74,11 @@ if __name__ == '__main__':
 
     trials = logs.read_study(Path("./logs/").joinpath(config.study_name))
 
-    processes: list[subprocess.Popen] = []
+    dataset = None
+    if shared_memory:
+        dataset = load_shared_dataset(config.dataset)
+
+    processes: list[subprocess.Popen | mp.Process] = []
     def rec(grid, params):
         """Recursively explore the grid and at the end run_train."""
         if len(grid) == 0:
@@ -62,7 +86,7 @@ if __name__ == '__main__':
                 print("Skipped ", ' '.join([str(arg) for arg in params]))
                 return
             else:
-                p = run_train(config_file, params)
+                p = run_train(config_file, params, dataset)
                 processes.append(p)
                 return
 
@@ -79,4 +103,7 @@ if __name__ == '__main__':
 
     if args.wait:
         for p in processes:
-            p.wait()
+            if isinstance(p, mp.Process):
+                p.join()
+            else:
+                p.wait()

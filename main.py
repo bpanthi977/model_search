@@ -1,14 +1,23 @@
 """Central CLI for all the functionality of the project."""
 import argparse
+from h5py import Dataset
 import pyrallis
 from datetime import datetime
 import random
 import string
+from typing import Optional
 
 from train import train_log
 from tune import tune
 from config import Config
 
+def train(config: Config, dataset: Optional[Dataset]):
+    ## Generate a random suffix so that train started at same time don't clash
+    random_suffix = ''.join([random.choice(string.ascii_letters) for i in range(4)])
+    trial_name = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + random_suffix
+
+    loss = train_log(config, trial_id=trial_name, callbacks=[], dataset=dataset)
+    print(f"Loss = {loss}")
 
 if __name__ == "__main__":
     # Parse argument, config and show help
@@ -36,12 +45,7 @@ if __name__ == "__main__":
 
     # Run train or tuning
     if not args.tune: # just train
-        ## Generate a random suffix so that train started at same time don't clash
-        random_suffix = ''.join([random.choice(string.ascii_letters) for i in range(4)])
-        trial_name = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + random_suffix
-
-        loss = train_log(config, trial_id=trial_name, callbacks=[])
-        print(f"Loss = {loss}")
+        train(config, None)
     else:
         tune(config)
 
