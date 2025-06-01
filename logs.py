@@ -55,25 +55,6 @@ def read_study(study_dir: Path):
 
     return trials
 
-def get_value(config, key):
-    def rec(config, keys):
-        if len(keys) == 0:
-            return config
-        else:
-            return rec(config.__dict__[keys[0]], keys[1:])
-    return rec(config, key.split('.'))
-
-def find_trial(trials, checks):
-    for t in trials:
-        match = True
-        for (key, value) in checks.items():
-            if get_value(t.config, key) != value:
-                match = False
-                break
-
-        if match == True:
-            return t
-
 def create_df(trials):
     df_loss = pd.DataFrame(columns=["name", "epoch", "train_loss", "val_loss"])
     df_config = pd.DataFrame(columns=["name", "loss", "batch_size",

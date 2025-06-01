@@ -51,6 +51,15 @@ def check_trial(prev_trials, extra):
         return True
     else:
         return False
+def parse_field(value):
+    """Try parsing value as int, float or string successively."""
+    try:
+        return int(value)
+    except ValueError:
+        try:
+            return float(value)
+        except ValueError:
+            return value
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -71,6 +80,7 @@ if __name__ == '__main__':
     config = pyrallis.parse(config_class=Config, config_path=config_file, args=[])
     with open(grid_file, "r") as f:
         grid = list(csv.reader(f))
+        grid = [[parse_field(v) for v in r] for r in grid]
 
     trials = logs.read_study(Path("./logs/").joinpath(config.study_name))
 
