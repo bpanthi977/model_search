@@ -17,40 +17,22 @@ def load_shared_dataset(config: DatasetConfig):
     return Dataset(dataset.trainX.share_memory_(), dataset.trainY.share_memory_(),
                    dataset.validateX.share_memory_(), dataset.validateY.share_memory_())
 
-def run_train(config_file, extra, dataset) -> subprocess.Popen | mp.Process:
+def start_subprocess(config_file, extra) -> subprocess.Popen:
     """Run training script."""
 
     extra_args = [str(arg) for arg in extra]
-    if dataset:
-        config = pyrallis.parse(config_class=Config, config_path=config_file, args=extra_args)
-        process = mp.Process(target=train, args=(config, dataset))
-        process.start()
-        print(process.pid, ' '.join(extra_args))
-        return process
-    else:
-        command_args = ["python", "main.py", "--config", config_file, *extra_args]
-        process = subprocess.Popen(
-            command_args,
-            stdout=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True
-        )
-        print(process.pid, ' '.join(command_args))
+    command_args = ["python", "main.py", "--config", config_file, *extra_args]
+    process = subprocess.Popen(
+        command_args,
+        stdout=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True
+    )
+    print(process.pid, ' '.join(command_args))
 
-        return process
+    return process
 
-def check_trial(prev_trials, extra):
-    checks = {}
-    for i in range(0, len(extra), 2):
-        key = extra[i]
-        val = extra[i+1]
-        checks[key[2:]] = val
-
-    if logs.find_trial(prev_trials, checks):
-        return True
-    else:
-        return False
 def parse_field(value):
     """Try parsing value as int, float or string successively."""
     try:
@@ -60,6 +42,13 @@ def parse_field(value):
             return float(value)
         except ValueError:
             return value
+
+def find_trial(trials: list[logs.Trial], trial: Config):
+    for t in trials:
+        if t.config.train == trial.train and t.config.dataset == trial.dataset:
+            return True
+
+    return False
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -89,17 +78,24 @@ if __name__ == '__main__':
         dataset = load_shared_dataset(config.dataset)
 
     processes: list[subprocess.Popen | mp.Process] = []
+
     def rec(grid, params):
         """Recursively explore the grid and at the end run_train."""
         if len(grid) == 0:
-            if check_trial(trials, params):
+            trial_config = pyrallis.parse(config_class=Config, config_path=config_file, args=[str(arg) for arg in params])
+
+            if find_trial(trials, trial_config):
                 print("Skipped ", ' '.join([str(arg) for arg in params]))
                 return
-            else:
-                p = run_train(config_file, params, dataset)
+            elif shared_memory:
+                p = mp.Process(target=train, args=(trial_config, dataset))
+                p.start()
                 processes.append(p)
                 return
-
+            else:
+                p = start_subprocess(config_file, params)
+                processes.append(p)
+                return
 
         param = grid[0]
         other_params = grid[1:]
