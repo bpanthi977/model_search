@@ -60,11 +60,13 @@ if __name__ == '__main__':
     parser.add_argument('-g', '--grid')
     parser.add_argument('-w', '--wait', action='store_true')
     parser.add_argument('-sm', '--shared-memory', action='store_true')
+    parser.add_argument('--dry-run', action="store_true")
     args = parser.parse_args()
 
     config_file = args.config
     grid_file = args.grid
     shared_memory = args.shared_memory
+    dry_run = args.dry_run
 
     config = pyrallis.parse(config_class=Config, config_path=config_file, args=[])
     with open(grid_file, "r") as f:
@@ -88,11 +90,19 @@ if __name__ == '__main__':
                 print("Skipped ", ' '.join([str(arg) for arg in params]))
                 return
             elif shared_memory:
+                print(' '.join([str(arg) for arg in params]))
+                if dry_run:
+                    return
+
                 p = mp.Process(target=train, args=(trial_config, dataset))
                 p.start()
                 processes.append(p)
                 return
             else:
+                if dry_run:
+                    print(' '.join([str(arg) for arg in params]))
+                    return
+
                 p = start_subprocess(config_file, params)
                 processes.append(p)
                 return
