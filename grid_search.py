@@ -68,7 +68,7 @@ if __name__ == '__main__':
 
     config = pyrallis.parse(config_class=Config, config_path=config_file, args=[])
     with open(grid_file, "r") as f:
-        grid = list(csv.reader(f))
+        grid = list(csv.reader(f, skipinitialspace=True))
         grid = [[parse_field(v) for v in r] for r in grid]
 
     trials = logs.read_study(Path("./logs/").joinpath(config.study_name))
