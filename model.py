@@ -27,8 +27,15 @@ def init_weights(m: nn.Module, config: ModelConfig):
             nn.init.uniform_(m.weight, config.init_param[0], config.init_param[1])
 
             if init == 'udd':
-                row_sums = torch.sum(m.weights, dim=1)
-                m.weight = m.weight + torch.diag(row_sums)
+                row_sums = torch.sum(m.weight, dim=1)
+
+                # Create a diagonal matrix (rectangular) that matches the size of weight
+                out_features, in_features = m.weight.shape
+                padded_diag = torch.zeros((out_features, in_features), dtype=m.weight.dtype, device=m.weight.device)
+                diag_size = min(out_features, in_features)
+                padded_diag[:diag_size, :diag_size] = torch.diag(row_sums[:diag_size])
+
+                m.weight.data += padded_diag
 
         elif init == 'ku':
             if config.activation == 'leaky_relu':
