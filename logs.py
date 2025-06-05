@@ -2,10 +2,16 @@ from pathlib import Path
 import csv
 import pandas as pd
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import pyrallis
 
 from config import Config, TrainConfig
+
+@dataclass
+class Timing:
+    start: str
+    end: str
+    total_time_min: float
 
 @dataclass
 class Trial:
@@ -14,6 +20,7 @@ class Trial:
     config: Config
     train_loss: List[Tuple[int, float]]
     val_loss: List[Tuple[int, float]]
+    time: Optional[Timing]
 
     @property
     def final_val_loss(self):
@@ -38,9 +45,23 @@ def read_run(trial_dir: Path):
     with open(trial_dir.joinpath("val_loss.csv"), "r") as f:
         val_loss = [[int(epoch), float(loss), float(time)] for [epoch, loss, time] in list(csv.reader(f))]
 
+    info_file = trial_dir.joinpath("info.csv")
+    time = None
+    if info_file.exists():
+        with open(info_file, "r") as f:
+            entries = list(csv.reader(f))
+            total_time = entries[2][1]
+            minutes = 0
+            factor = 60
+            for part in total_time.split(':'):
+                minutes += int(part) * factor
+                factor = factor / 60
+
+            time = Timing(start=entries[0][1], end=entries[1][1], total_time_min=minutes)
+
     if len(train_loss) == 0 or len(val_loss) == 0:
         return False
-    return Trial(name=trial_dir.name, config=config, train_loss=train_loss, val_loss=val_loss)
+    return Trial(name=trial_dir.name, config=config, train_loss=train_loss, val_loss=val_loss, time=time)
 
 def read_study(study_dir: Path):
     trials = []
@@ -58,8 +79,9 @@ def read_study(study_dir: Path):
 def create_df(trials):
     df_loss = pd.DataFrame(columns=["name", "epoch", "train_loss", "val_loss"])
     df_config = pd.DataFrame(columns=["name", "loss", "batch_size",
-                                      "init", "activation", "hidden_layers", "dropout",
-                                      "optimizer", "lr", "weight_decay"])
+                                      "init", "init_param", "activation", "hidden_layers", "dropout",
+                                      "optimizer", "lr", "weight_decay",
+                                      "train_time"])
 
     for t in trials:
         for (tl, vl) in zip(t.train_loss, t.val_loss):
@@ -70,8 +92,9 @@ def create_df(trials):
         model = t.config.train.model
         optim = t.config.train.optim
         df_config.loc[len(df_config)] = [t.name, train.loss, train.batch_size,
-                                         model.init, model.activation, model.hidden_layers, model.dropout,
-                                         optim.optimizer, optim.lr, optim.weight_decay]
+                                         model.init, model.init_param, model.activation, model.hidden_layers, model.dropout,
+                                         optim.optimizer, optim.lr, optim.weight_decay,
+                                         t.time.total_time_min if t.time else 0]
 
     df = df_config.merge(df_loss, how='inner', validate='one_to_many')
     return df
