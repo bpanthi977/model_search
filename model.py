@@ -12,7 +12,7 @@ def activation_function(act: str):
         return nn.ReLU()
     elif act == 'tanh':
         return nn.Tanh()
-    elif act == 'leakyrelu':
+    elif act == 'leaky_relu':
         return nn.LeakyReLU(leaky_relu_slope)
     else:
         raise ValueError(f"Invalid value for activation {act}")
