@@ -51,6 +51,7 @@ def find_trial(trials: list[logs.Trial], trial: Config):
     return False
 
 if __name__ == '__main__':
+    mp.set_start_method('spawn', force=True)
     parser = argparse.ArgumentParser(
         prog="Hyperparameter grid search",
         description="Runs grid search on hyperparamters. Skips the trials that have already completed.",
