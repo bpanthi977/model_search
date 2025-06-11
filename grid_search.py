@@ -21,7 +21,7 @@ def start_subprocess(config_file, extra) -> subprocess.Popen:
     """Run training script."""
 
     extra_args = [str(arg) for arg in extra]
-    command_args = ["python", "main.py", "--config", config_file, *extra_args]
+    command_args = ["python", "main.py", "--log-stdout", "--config", config_file, *extra_args]
     process = subprocess.Popen(
         command_args,
         stdout=subprocess.DEVNULL,
@@ -94,7 +94,7 @@ if __name__ == '__main__':
                 if dry_run:
                     return
 
-                p = mp.Process(target=train, args=(trial_config, dataset))
+                p = mp.Process(target=train, args=(trial_config, dataset, True))
                 p.start()
                 processes.append(p)
                 return
