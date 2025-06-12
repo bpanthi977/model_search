@@ -1,0 +1,8 @@
+- 00 sample.ipynb :: Create a random sample of 20% of the dataset
+- 01 visualize.ipynb :: Exploratory data analysis: Distribution of input and output
+- 02 tuning_optimizer.ipynb :: Comparision of optimizer and their parameters
+- 03 tuning_initialization.ipynb :: Comparision of initializations (u, udd, ku, xu)
+- 04 tuning_network_*.ipynb :: Network structure
+  - 01 :: MSE loss
+  - 02 :: SmoothL1 Loss
+  - 03 :: Networks of different depths
