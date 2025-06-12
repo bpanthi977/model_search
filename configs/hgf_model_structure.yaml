@@ -1,0 +1,25 @@
+study_name: "hgf-20p"
+
+dataset:
+  db_file: dataset/HGF-20p.h5
+  label: HGF
+
+train:
+  device: "cuda"
+
+  model:
+    init: "ku"
+    init_param: []
+    activation: "relu"
+    hidden_layers: [74]
+    dropout: []
+
+  optim:
+    optimizer: "adagrad"
+    lr: 0.01
+    weight_decay: 0
+
+  loss: "smoothl1"
+
+  epoch: 100
+  batch_size: 1024

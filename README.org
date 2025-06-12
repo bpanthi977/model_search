@@ -1,0 +1,51 @@
+* model_search
+
+Train Neural Networks and explore hyperparamters space for tuning.
+
+All training is driven by yaml config files and command line argumetns. The structure of yaml configs is defined in config.py.
+
+* Dependencies and setup
+
+This project uses [[https://docs.astral.sh/uv/][uv]] to manage dependencies.
+1. Install =uv=
+2. Run =uv sync= in the project folder
+3. Activate the venv before running the code =source .venv/bin/activate=
+
+* Training
+
+1. Create a config file. See =configs/hgf_model_strcuture.yaml= for example.
+2. Run the main.py script:
+   #+begin_src shell
+   source .venv/bin/activate
+   python main.py --config configs/hgf_model_structure.yaml
+   #+end_src
+
+   You will see a progress bar as training goes on.
+
+3. The logs will be saved in =logs/hgf-20p/<date>-<time>-<random_string>/=
+
+
+If you want to change a hyperparameter, change it in the config =yaml= file or specify that in the command line argument:
+
+   #+begin_src shell
+   python main.py --config configs/hgf_model_structure.yaml --train.model.activation tanh
+   #+end_src
+* Code Organization
+
+- main.py :: is the CLI for training the models
+- model.py :: defines network (initialization, activation, hidden layers)
+- train.py :: defines optimizer, loss function and training loop. =train_log= save the loss curves, model and other info to logs folder
+- config.py :: defines the config (model structure, optimizer, dataset, epochs, batch_size, ...)
+- logs.py :: Utility functions to parse logs
+- grid_search.py :: Runs training across all combinations of hyperparameters as specified by grid csv file. See =configs/hgf_model_structure_01.csv= for example. Each line of csv specifies a command line argument to main.py and its possible values. =grid_search.py= just runs the main.py script with all the combination of those arguments.
+
+  #+begin_src shell
+  python grid_search.py --config configs/hgf_model_structure.yaml --grid configs/hgf_model_structure_01.csv --wait --shared-memory
+  #+end_src
+
+
+  - =--shared-memory= means the dataset will be shared by all the training processes. This mean you can train many models at once with less RAM demand.
+
+  - =--wait= means the grid_search.py script will wait for all the training processes to complete before exiting. This is useful when submitting jobs through SLURM or PBS.
+
+- =tune.py= :: Bayesian optimization (currently not used)

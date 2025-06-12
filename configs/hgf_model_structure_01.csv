@@ -1,0 +1,8 @@
+"--train.model.init", "ku"
+"--train.model.init_param", "[]"
+"--train.model.dropout", "[]"
+"--train.model.hidden_layers", "[74]", "[128]", "[512]"
+"--train.model.activation", "relu", "tanh"
+"--train.optim.optimizer", "rmsprop"
+"--train.optim.lr", 0.001
+"--train.optim.weight_decay", 0
