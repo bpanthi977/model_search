@@ -22,7 +22,6 @@ def activation_function(act: str):
 
 def init_weights(m: nn.Module, config: ModelConfig):
     if isinstance(m, nn.Linear):
-        m.weight, m.bias
         init = config.init
 
         if init == 'u' or init == 'udd':
