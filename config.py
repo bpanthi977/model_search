@@ -31,7 +31,7 @@ class ModelConfig:
     init_param: List[float] = field(metadata={"help": "Parameters for uniform initialization function. U[-1, 1], U[-10, 10]"})
     activation: str = field(metadata={"help": "Activation function. [relu, tanh, leaky_relu]"})
     hidden_layers: List[int] = field(metadata={"help": "Hidden layers to use."})
-    dropout: List[int] = field(metadata={"help": "Dropout percentage to use after activation"})
+    dropout: List[float] = field(metadata={"help": "Dropout percentage to use after activation"})
     normalize: bool = field(default=False, metadata={"help": "Normalize the input and output to mean 0, and standard deviation 1."})
 
     def __post_init__(self):
