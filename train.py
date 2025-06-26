@@ -68,8 +68,8 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
 
             optimizer.zero_grad()
             if config.model.normalize:
-                Y_pred = model.model(model.normalizeX(batch_X))
-                batch_Y = model.normalizeY(batch_Y)
+                Y_pred = model.model(model.normalize(batch_X, model.normalizeX))
+                batch_Y = model.normalize(batch_Y, model.normalizeY)
             else:
                 Y_pred = model.forward(batch_X)
 
