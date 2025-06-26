@@ -1,4 +1,5 @@
 """Dataset class and load_dataset."""
+import math
 import torch
 import h5py
 import numpy as np
@@ -34,6 +35,15 @@ def get_label(db, labels):
 
     return False
 
+def sample(arr: np.ndarray, fraction):
+    if fraction == 1:
+        return arr
+
+    total_rows = len(arr)
+    sample_count = math.ceil(total_rows * fraction)
+    random_indices = np.random.choice(total_rows, sample_count, replace=False)
+    return arr[random_indices]
+
 def load_dataset(config: DatasetConfig):
     """
     Load the dataset stored as torch.tensors in `cpu`.
@@ -48,16 +58,16 @@ def load_dataset(config: DatasetConfig):
     if not train:
         raise ValueError(f"label {label} or {label}_train not found in db file")
 
-    train_X = torch.from_numpy(np.array(db[train]['input'], dtype=np.float64))
-    train_Y = torch.from_numpy(np.array(db[train]['output'], dtype=np.float64))
+    train_X = torch.from_numpy(sample(np.array(db[train]['input'], dtype=np.float64), config.sample))
+    train_Y = torch.from_numpy(sample(np.array(db[train]['output'], dtype=np.float64), config.sample))
 
     val = get_label(db, [label+'_validate', label])
     if val == train:
         validate_X = train_X
         validate_Y = train_Y
     elif val:
-        validate_X = torch.from_numpy(np.array(db[val]['input'], dtype=np.float64))
-        validate_Y = torch.from_numpy(np.array(db[val]['output'], dtype=np.float64))
+        validate_X = torch.from_numpy(sample(np.array(db[val]['input'], dtype=np.float64), config.sample))
+        validate_Y = torch.from_numpy(sample(np.array(db[val]['output'], dtype=np.float64), config.sample))
     else:
         raise ValueError(f"label {label} or {label}_validate not found in db file")
 

@@ -78,7 +78,7 @@ def read_study(study_dir: Path):
 
 def create_df(trials):
     df_loss = pd.DataFrame(columns=["name", "epoch", "train_loss", "val_loss"])
-    df_config = pd.DataFrame(columns=["name", "loss", "batch_size",
+    df_config = pd.DataFrame(columns=["name", "loss", "batch_size", "sample",
                                       "init", "init_param", "activation", "hidden_layers", "dropout",
                                       "optimizer", "lr", "weight_decay",
                                       "train_time"])
@@ -91,7 +91,7 @@ def create_df(trials):
         train = t.config.train
         model = t.config.train.model
         optim = t.config.train.optim
-        df_config.loc[len(df_config)] = [t.name, train.loss, train.batch_size,
+        df_config.loc[len(df_config)] = [t.name, train.loss, train.batch_size, t.config.dataset.sample,
                                          model.init, model.init_param, model.activation, model.hidden_layers, model.dropout,
                                          optim.optimizer, optim.lr, optim.weight_decay,
                                          t.time.total_time_min if t.time else 0]

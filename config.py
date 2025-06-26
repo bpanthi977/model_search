@@ -17,6 +17,7 @@ class DatasetConfig:
 
     db_file: str = field(metadata={"help": ".h5 file where the input and output is dumped"})
     label: str = field(default="unknown", metadata={"help": "label of the approx block (suffix _train and _validation is added for respective splits)"})
+    sample: float = field(default=1, metadata={"help": "Fraction of the dataset to use for training and validation. Default = 1 (i.e. 100%)"})
 
 def check_member(name, val, lst):
     """Raise error if val is not in list `lst`."""

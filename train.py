@@ -167,7 +167,9 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
              ["end_time", datetime.now().strftime("%Y%m%d-%H:%M:%S")],
              ["total_time", format_duration(datetime.now() - start)],
              ["val_loss", final_val_loss],
-             ["loss", config.train.loss]]
+             ["loss", config.train.loss],
+             ["training_size", dataset.trainX.shape[0]],
+             ["validation_size", dataset.validateX.shape[0]]]
         )
     # Return the evaluation metric
     return final_val_loss
