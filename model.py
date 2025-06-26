@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+from typing import Optional, Tuple
+
 import torch
 import torch.nn as nn
 
@@ -52,12 +55,34 @@ def init_weights(m: nn.Module, config: ModelConfig):
             nn.init.xavier_uniform_(m.weight, gain=gain)
 
         else:
-            assert false, "Impossible initialization parameter. Should have been checked in ModelConfig."
+            assert False, "Impossible initialization parameter. Should have been checked in ModelConfig."
+
+@dataclass
+class Normalization:
+    X_mu: torch.Tensor
+    X_std: torch.Tensor
+    Y_mu: torch.Tensor
+    Y_std: torch.Tensor
+
+    def to(self, device: torch.DeviceObjType):
+        self.X_mu = self.X_mu.to(device)
+        self.X_std = self.X_std.to(device)
+        self.Y_mu = self.Y_mu.to(device)
+        self.Y_std = self.Y_std.to(device)
 
 class MLP(nn.Module):
-    def __init__(self, device, input_dim, output_dim, config: ModelConfig):
+    def __init__(self, device, input_dim, output_dim, config: ModelConfig, normalize: Optional[Normalization]):
         super().__init__()
         self.device = device
+        if normalize:
+            normalize.to(device)
+            self.X_mu = normalize.X_mu
+            self.Y_mu = normalize.Y_mu
+            self.X_std = normalize.X_std
+            self.Y_std = normalize.Y_std
+            self.normalize = True
+        else:
+            self.normalize = False
 
         layers = []
         fan_in = input_dim
@@ -74,16 +99,49 @@ class MLP(nn.Module):
         self.model.apply(lambda m: init_weights(m, config))
         self.to(device)
 
+    def normalizeX(self, x):
+        if self.normalize:
+            x = (x - self.X_mu) / self.X_std
+
+        return x
+
+    def normalizeY(self, y: torch.Tensor):
+        if self.normalize:
+            y = (y - self.Y_mu) / self.Y_std
+
+        return y
+
+    def denormalizeY(self, y: torch.Tensor):
+        if self.normalize:
+            y = y * self.Y_std + self.Y_mu
+
+        return y
+
     def forward(self, x):
-        return self.model(x)
+        y = self.model.forward(self.normalizeX(x))
+        # Model is trained on normalized X and Y
+        # but we need to return un-normalized Y to the user
+        y = self.denormalizeY(y)
+
+        return y
 
     def get_device(self):
         return self.device
 
 def create_model(config: TrainConfig, dataset: Dataset):
+    normalize = None
+    if config.model.normalize:
+        X_mean = dataset.trainX.mean(dim=0)
+        X_std = dataset.trainX.std(dim=0)
+
+        Y_mean = dataset.trainY.mean(dim=0)
+        Y_std = dataset.trainY.std(dim=0)
+        normalize = Normalization(X_mean, X_std, Y_mean, Y_std)
+
     return MLP(
         torch.device(config.device),
         dataset.input_dim(),
         dataset.output_dim(),
-        config.model
+        config.model,
+        normalize
     )

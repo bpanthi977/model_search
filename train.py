@@ -67,7 +67,12 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
             batch_Y = batch_Y.to(device)
 
             optimizer.zero_grad()
-            Y_pred = model.forward(batch_X)
+            if config.model.normalize:
+                Y_pred = model.model(model.normalizeX(batch_X))
+                batch_Y = model.normalizeY(batch_Y)
+            else:
+                Y_pred = model.forward(batch_X)
+
             loss = loss_fn(Y_pred, batch_Y)
             loss.backward()
             optimizer.step()
