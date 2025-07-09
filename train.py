@@ -55,6 +55,8 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
     optimizer = get_optimizer(config.optim, model)
     loss_fn = get_loss_fn(config.loss)
 
+    print(model)
+
     for epoch in epoch_bar:
 
         model.train()
