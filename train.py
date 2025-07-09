@@ -13,6 +13,7 @@ import pyrallis
 from config import Config, TrainConfig, OptimizerConfig
 from dataset import Dataset, load_dataset
 from model import MLP, create_model
+from visualize import visualize_weights, visualize_loss
 
 
 def get_loss_fn(loss: str):
@@ -174,5 +175,12 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
              ["training_size", dataset.trainX.shape[0]],
              ["validation_size", dataset.validateX.shape[0]]]
         )
+
+    # Create visualizations
+    fig_dir = run_dir.joinpath("figs")
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    visualize_weights(model, fig_dir)
+    visualize_loss(run_dir, fig_dir)
+
     # Return the evaluation metric
     return final_val_loss
