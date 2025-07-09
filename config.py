@@ -34,6 +34,7 @@ class ModelConfig:
     hidden_layers: List[int] = field(metadata={"help": "Hidden layers to use."})
     dropout: List[float] = field(metadata={"help": "Dropout percentage to use after activation"})
     normalize: bool = field(default=False, metadata={"help": "Normalize the input and output to mean 0, and standard deviation 1."})
+    bias: bool = field(default=True, metadata={"help": "Should the linear layers have a bias term? (Default: True)"})
 
     def __post_init__(self):
         """Validate the config."""

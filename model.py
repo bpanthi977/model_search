@@ -102,13 +102,13 @@ class MLP(nn.Module):
         layers = []
         fan_in = input_dim
         for (i, layer_dim) in enumerate(config.hidden_layers):
-            layers.append(nn.Linear(fan_in, layer_dim, dtype=torch.float64))
+            layers.append(nn.Linear(fan_in, layer_dim, dtype=torch.float64, bias=config.bias))
             fan_in = layer_dim
 
             layers.append(activation_function(config.activation))
             if i < len(config.dropout):
                 layers.append(nn.Dropout(config.dropout[i]))
-        layers.append(nn.Linear(fan_in, output_dim, dtype=torch.float64))
+        layers.append(nn.Linear(fan_in, output_dim, dtype=torch.float64, bias=config.bias))
 
         self.model = nn.Sequential(*layers)
         self.model.apply(lambda m: init_weights(m, config))
