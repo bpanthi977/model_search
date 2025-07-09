@@ -15,6 +15,33 @@ from dataset import Dataset, load_dataset
 from model import MLP, create_model
 from visualize import visualize_weights, visualize_loss
 
+class MinMax():
+    def __init__(self):
+        self.min = None
+        self.max = None
+        self.cur_min = 0.0
+        self.cur_max = 0.0
+
+    def update(self, tensor: torch.Tensor):
+        self.cur_min = tensor.min().detach().item()
+        self.cur_max = tensor.max().detach().item()
+
+        if self.min:
+            self.min = min(self.min, self.cur_min)
+        else:
+            self.min = self.cur_min
+
+        if self.max:
+            self.max = max(self.max, self.cur_max)
+        else:
+            self.max = self.cur_max
+
+    def current(self):
+        return f"({self.cur_min:.4f},{self.cur_max:.4f})"
+
+    def agg(self):
+        return f"({self.min:.4f},{self.max:.4f})"
+
 
 def get_loss_fn(loss: str):
     """Create loss function."""
@@ -65,6 +92,7 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
         batch_bar = tqdm(train_dataloader, unit="batch", leave=False)
         torch.cuda.synchronize()
         start = datetime.now()
+        train_y = MinMax()
         for batch_X, batch_Y in batch_bar:
             batch_X = batch_X.to(device)
             batch_Y = batch_Y.to(device)
@@ -82,6 +110,12 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
 
             total_loss += loss.detach()
 
+            train_y.update(Y_pred - batch_Y)
+            batch_bar.set_postfix({
+                "ΔY": train_y.current()
+            })
+
+
         torch.cuda.synchronize()
         train_time = (datetime.now() - start).microseconds / 1000.0
         mean_train_loss = total_loss.item() / len(train_dataloader.dataset)
@@ -90,6 +124,8 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
         batch_bar = tqdm(val_dataloader, unit="batch", leave=False)
         total_loss = torch.tensor(0.0).to(device)
         start = datetime.now()
+
+        val_y = MinMax()
         with torch.no_grad():
             for batch_X, batch_Y in batch_bar:
                 batch_X = batch_X.to(device)
@@ -99,13 +135,19 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
 
                 total_loss += loss.detach()
 
+                val_y.update(Y_pred - batch_Y)
+                batch_bar.set_postfix({
+                    f"ΔY": val_y.current()
+                })
+
             torch.cuda.synchronize()
             val_time = (datetime.now() - start).microseconds / 1000.0
             mean_val_loss = total_loss.item() / len(val_dataloader.dataset)
 
         epoch_bar.set_postfix({
             f"Train {config.loss}": f"{mean_train_loss:.4f}",
-            f"Val {config.loss}": f"{mean_val_loss:.4f}"
+            f"Val {config.loss}": f"{mean_val_loss:.4f}",
+            f"ΔY": train_y.agg()
         })
 
         for callback in callbacks:
