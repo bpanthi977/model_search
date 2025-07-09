@@ -28,7 +28,7 @@ def check_member(name, val, lst):
 class ModelConfig:
     """Configuration for Model architecture."""
 
-    init: str = field(metadata={"help": "Initialization for weights. [u (Uniform), udd (Uniform diagonally dominant), ku (kaiming uniform), xu (Xavier uinform)]"})
+    init: str = field(metadata={"help": "Initialization for weights. [u (Uniform), udd (Uniform diagonally dominant), ku (kaiming uniform), xu (Xavier uinform), default]"})
     init_param: List[float] = field(metadata={"help": "Parameters for uniform initialization function. U[-1, 1], U[-10, 10]"})
     activation: str = field(metadata={"help": "Activation function. [relu, tanh, leaky_relu]"})
     hidden_layers: List[int] = field(metadata={"help": "Hidden layers to use."})
@@ -37,7 +37,7 @@ class ModelConfig:
 
     def __post_init__(self):
         """Validate the config."""
-        check_member('init', self.init, ['u', 'udd', 'ku', 'xu'])
+        check_member('init', self.init, ['u', 'udd', 'ku', 'xu', 'default'])
         check_member('activation', self.activation, ['relu', 'tanh', 'leaky_relu'])
 
         if self.init == 'u' or self.init == 'udd':

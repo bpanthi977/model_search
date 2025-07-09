@@ -52,7 +52,8 @@ def init_weights(m: nn.Module, config: ModelConfig):
                 gain = nn.init.calculate_gain(config.activation)
 
             nn.init.xavier_uniform_(m.weight, gain=gain)
-
+        elif init == 'default':
+            pass
         else:
             assert False, "Impossible initialization parameter. Should have been checked in ModelConfig."
 
