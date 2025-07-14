@@ -202,6 +202,8 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
 
         model = create_model(config.train, dataset)
         train(model, dataset, config.train, [callback, *callbacks])
+        with open(run_dir.joinpath("model_shape"), "w") as f:
+            f.write(str(model))
 
     # Save model
     model_script = torch.jit.script(model.to(torch.device('cpu')).double())
