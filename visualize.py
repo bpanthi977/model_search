@@ -10,14 +10,15 @@ import pandas as pd
 
 def visualize_weights(model: torch.nn.Module, path: Path):
     count = 0
-    plt.figure()
     for p in model.parameters():
         if len(p.shape) == 2:
             # Matrix
+            plt.figure()
             sns.heatmap(p.detach().numpy())
             plt.savefig(path.joinpath(f"{count:03d}-A"))
         elif len(p.shape) == 1:
             # Vector
+            plt.figure()
             sns.heatmap(p.reshape(-1, 1).detach().numpy())
             plt.savefig(path.joinpath(f"{count:03d}-b"))
 
