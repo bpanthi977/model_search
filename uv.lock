@@ -1164,6 +1164,7 @@ dependencies = [
     { name = "jupytext" },
     { name = "matplotlib" },
     { name = "numpy" },
+    { name = "nvidia-ml-py3" },
     { name = "optuna" },
     { name = "optuna-dashboard" },
     { name = "pathlib" },
@@ -1182,6 +1183,7 @@ requires-dist = [
     { name = "jupytext", specifier = ">=1.17.1" },
     { name = "matplotlib", specifier = ">=3.10.1" },
     { name = "numpy", specifier = ">=2.2.5" },
+    { name = "nvidia-ml-py3", specifier = ">=7.352.0" },
     { name = "optuna", specifier = ">=4.3.0" },
     { name = "optuna-dashboard", specifier = ">=0.18.0" },
     { name = "pathlib", specifier = ">=1.0.1" },
@@ -1466,6 +1468,12 @@ source = { registry = "https://pypi.org/simple" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3b/9a/72ef35b399b0e183bc2e8f6f558036922d453c4d8237dab26c666a04244b/nvidia_cusparselt_cu12-0.6.3-py3-none-manylinux2014_x86_64.whl", hash = "sha256:e5c8a26c36445dd2e6812f1177978a24e2d37cacce7e090f297a688d1ec44f46", size = 156785796 },
 ]
+
+[[package]]
+name = "nvidia-ml-py3"
+version = "7.352.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6d/64/cce82bddb80c0b0f5c703bbdafa94bfb69a1c5ad7a79cff00b482468f0d3/nvidia-ml-py3-7.352.0.tar.gz", hash = "sha256:390f02919ee9d73fe63a98c73101061a6b37fa694a793abf56673320f1f51277", size = 19494 }
 
 [[package]]
 name = "nvidia-nccl-cu12"

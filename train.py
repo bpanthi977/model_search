@@ -14,6 +14,7 @@ from config import Config, TrainConfig, OptimizerConfig
 from dataset import Dataset, load_dataset
 from model import MLP, create_model
 from visualize import visualize_weights, visualize_loss
+from log_gpu_utilization import log_gpu_utilization
 
 class MinMax():
     def __init__(self):
@@ -196,6 +197,13 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
             f_train.flush()
             f_val.flush()
 
+        # Start GPU utilization logging utility in the background
+        stop_gpu_logging = False
+        def stop_fn():
+            return stop_gpu_logging
+
+        log_gpu_utilization(interval=10, log_file=run_dir.joinpath('gpu_utilization.csv'), stop_flag=stop_fn, new_thread=True)
+
         # Load data, train and evaluate
         if not dataset:
             dataset = load_dataset(config.dataset)
@@ -208,6 +216,8 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
             train(model, dataset, config.train, [callback, *callbacks])
         except KeyboardInterrupt:
             pass
+
+        stop_gpu_logging = True
 
     # Save model
     model_script = torch.jit.script(model.to(torch.device('cpu')).double())
@@ -229,6 +239,9 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
     fig_dir.mkdir(parents=True, exist_ok=True)
     visualize_weights(model, fig_dir)
     visualize_loss(run_dir, fig_dir)
+
+    # Print run_dir
+    print(run_dir)
 
     # Return the evaluation metric
     return final_val_loss
