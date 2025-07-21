@@ -61,6 +61,7 @@ if __name__ == '__main__':
     parser.add_argument('-g', '--grid')
     parser.add_argument('-w', '--wait', action='store_true')
     parser.add_argument('-sm', '--shared-memory', action='store_true')
+    parser.add_argument('--seed')
     parser.add_argument('--dry-run', action="store_true")
     args = parser.parse_args()
 
@@ -68,6 +69,7 @@ if __name__ == '__main__':
     grid_file = args.grid
     shared_memory = args.shared_memory
     dry_run = args.dry_run
+    set_all_seeds(int(args.seed or '42'))
 
     config = pyrallis.parse(config_class=Config, config_path=config_file, args=[])
     with open(grid_file, "r") as f:

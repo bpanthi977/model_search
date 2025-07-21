@@ -9,6 +9,8 @@ from datetime import datetime
 import random
 import string
 from typing import Optional
+import torch
+import numpy as np
 
 from train import train_log
 from tune import tune
@@ -37,6 +39,14 @@ def train(config: Config, dataset: Optional[Dataset], redirect_io: bool):
     loss = train_log(config, trial_id=trial_name, callbacks=[], dataset=dataset)
     print(f"Loss = {loss}")
 
+def set_all_seeds(seed: int = 42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+
 if __name__ == "__main__":
     # Parse argument, config and show help
     parser = argparse.ArgumentParser(
@@ -47,6 +57,7 @@ if __name__ == "__main__":
     parser.add_argument('-h', '--help', action='store_true')
     parser.add_argument('-c', '--config')
     parser.add_argument('-l', '--log-stdout', action='store_true')
+    parser.add_argument('--seed')
     parser.add_argument('--tune', action='store_true')
 
     (args, args_rest) = parser.parse_known_args()
@@ -55,6 +66,8 @@ if __name__ == "__main__":
         config_parser = pyrallis.argparsing.ArgumentParser(config_class=Config)
         config_parser.print_help()
         exit(0)
+
+    set_all_seeds(int(args.seed or '42'))
 
     try:
         config = pyrallis.parse(config_class=Config, config_path=args.config, args=args_rest)
