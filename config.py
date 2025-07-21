@@ -36,6 +36,7 @@ class ModelConfig:
     normalize: bool = field(default=None, metadata={"help": "Normalize the input and output to mean 0, and standard deviation 1. Sets both flags normalizeX and normalizeY."})
     normalizeX: bool = field(default=None, metadata={"help": "Normalize input. Takes value from normalize."})
     normalizeY: bool = field(default=None, metadata={"help": "Normalize output. Takes value from normalize."})
+    batchnorm: bool = field(default=None, metadata={"help": "Enable batchnorm in each hidden layer."})
     bias: bool = field(default=True, metadata={"help": "Should the linear layers have a bias term? (Default: True)"})
 
     def __post_init__(self):

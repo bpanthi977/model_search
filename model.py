@@ -100,7 +100,11 @@ class MLP(nn.Module):
             layers.append(nn.Linear(fan_in, layer_dim, dtype=torch.float64, bias=config.bias))
             fan_in = layer_dim
 
+            if config.batchnorm:
+                layers.append(nn.BatchNorm1d(layer_dim, dtype=torch.float64))
+
             layers.append(activation_function(config.activation))
+
             if i < len(config.dropout):
                 layers.append(nn.Dropout(config.dropout[i]))
         layers.append(nn.Linear(fan_in, output_dim, dtype=torch.float64, bias=config.bias))
