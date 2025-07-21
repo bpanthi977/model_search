@@ -99,11 +99,8 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
             batch_Y = batch_Y.to(device)
 
             optimizer.zero_grad()
-            if config.model.normalize:
-                Y_pred = model.model(model.normalize(batch_X, model.normalizeX))
-                batch_Y = model.normalize(batch_Y, model.normalizeY)
-            else:
-                Y_pred = model(batch_X);
+            Y_pred = model.model(model.normalize(batch_X, model.normalizeX))
+            batch_Y = model.normalize(batch_Y, model.normalizeY)
 
             loss = loss_fn(Y_pred, batch_Y)
             loss.backward()

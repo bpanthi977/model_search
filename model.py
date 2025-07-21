@@ -78,26 +78,21 @@ class Normalization:
         if self.X_mu != None and self.X_std != None:
             return (True, self.X_mu, self.X_std)
         else:
-            return None
+            return (False, torch.tensor(1), torch.tensor(1))
 
     def Y(self):
         if self.Y_mu != None and self.Y_std != None:
             return (True, self.Y_mu, self.Y_std)
         else:
-            return None
+            return (False, torch.tensor(1), torch.tensor(1))
 
 class MLP(nn.Module):
-    def __init__(self, device, input_dim, output_dim, config: ModelConfig, normalize: Optional[Normalization]):
+    def __init__(self, device, input_dim, output_dim, config: ModelConfig, normalize: Normalization):
         super().__init__()
         self.device = device
-        if normalize:
-            normalize.to(device)
-            self.normalizeX = normalize.X()
-            self.normalizeY = normalize.Y()
-        else:
-            # Dummy values to satisfy torch.jit.save
-            self.normalizeX = (False, torch.tensor(1), torch.tensor(1))
-            self.normalizeY = (False, torch.tensor(1), torch.tensor(1))
+        normalize.to(device)
+        self.normalizeX = normalize.X()
+        self.normalizeY = normalize.Y()
 
         layers = []
         fan_in = input_dim
@@ -138,19 +133,15 @@ class MLP(nn.Module):
         return self.device
 
 def create_model(config: TrainConfig, dataset: Dataset):
-    normalize = None
-    if config.model.normalize:
-        X_mean = dataset.trainX.mean(dim=0)
-        X_std = dataset.trainX.std(dim=0)
-
-        Y_mean = dataset.trainY.mean(dim=0)
-        Y_std = dataset.trainY.std(dim=0)
-        normalize = Normalization(X_mean, X_std, Y_mean, Y_std)
-
     return MLP(
         torch.device(config.device),
         dataset.input_dim(),
         dataset.output_dim(),
         config.model,
-        normalize
+        Normalization(
+            dataset.trainX.mean(dim=0) if config.model.normalizeX else None,
+            dataset.trainX.std(dim=0)  if config.model.normalizeX else None,
+            dataset.trainY.mean(dim=0) if config.model.normalizeY else None,
+            dataset.trainY.std(dim=0)  if config.model.normalizeY else None
+        )
     )

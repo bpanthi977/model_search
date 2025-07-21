@@ -33,7 +33,9 @@ class ModelConfig:
     activation: str = field(metadata={"help": "Activation function. [relu, tanh, leaky_relu]"})
     hidden_layers: List[int] = field(metadata={"help": "Hidden layers to use."})
     dropout: List[float] = field(metadata={"help": "Dropout percentage to use after activation"})
-    normalize: bool = field(default=False, metadata={"help": "Normalize the input and output to mean 0, and standard deviation 1."})
+    normalize: bool = field(default=None, metadata={"help": "Normalize the input and output to mean 0, and standard deviation 1. Sets both flags normalizeX and normalizeY."})
+    normalizeX: bool = field(default=None, metadata={"help": "Normalize input. Takes value from normalize."})
+    normalizeY: bool = field(default=None, metadata={"help": "Normalize output. Takes value from normalize."})
     bias: bool = field(default=True, metadata={"help": "Should the linear layers have a bias term? (Default: True)"})
 
     def __post_init__(self):
@@ -45,6 +47,19 @@ class ModelConfig:
             if not len(self.init_param) == 2:
                 raise ValueError("TrainConfig: init_param must be [a,b] when init is u or udd")
 
+        if self.normalize != None:
+            assert(self.normalizeX == None and self.normalizeY == None)
+            self.normalizeX = self.normalize
+            self.normalizeY = self.normalize
+        elif self.normalizeX and self.normalizeY:
+            self.normalize = True
+        else:
+            if self.normalize == None:
+                self.normalize = False
+            if self.normalizeX == None:
+                self.normalizeX = False
+            if self.normalizeY == None:
+                self.normalizeY = False
 
 @dataclass
 class OptimizerConfig:
