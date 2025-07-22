@@ -4,3 +4,5 @@
 /.vscode/
 scripts/.ipynb_checkpoints
 /scripts/*.svg
+/logs/
+/tests/
