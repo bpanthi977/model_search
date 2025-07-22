@@ -33,10 +33,10 @@ class ModelConfig:
     activation: str = field(metadata={"help": "Activation function. [relu, tanh, leaky_relu]"})
     hidden_layers: List[int] = field(metadata={"help": "Hidden layers to use."})
     dropout: List[float] = field(metadata={"help": "Dropout percentage to use after activation"})
-    normalize: bool = field(default=None, metadata={"help": "Normalize the input and output to mean 0, and standard deviation 1. Sets both flags normalizeX and normalizeY."})
-    normalizeX: bool = field(default=None, metadata={"help": "Normalize input. Takes value from normalize."})
-    normalizeY: bool = field(default=None, metadata={"help": "Normalize output. Takes value from normalize."})
-    batchnorm: bool = field(default=None, metadata={"help": "Enable batchnorm in each hidden layer."})
+    normalize: bool = field(default=None, metadata={"help": "Deprecated. True implies both normalizeX and normalizeY are true."})
+    normalizeX: bool = field(default=None, metadata={"help": "Normalize input."})
+    normalizeY: bool = field(default=None, metadata={"help": "Normalize output."})
+    batchnorm: bool = field(default=False, metadata={"help": "Enable batchnorm in each hidden layer."})
     bias: bool = field(default=True, metadata={"help": "Should the linear layers have a bias term? (Default: True)"})
 
     def __post_init__(self):
@@ -48,19 +48,16 @@ class ModelConfig:
             if not len(self.init_param) == 2:
                 raise ValueError("TrainConfig: init_param must be [a,b] when init is u or udd")
 
-        if self.normalize != None:
-            assert(self.normalizeX == None and self.normalizeY == None)
-            self.normalizeX = self.normalize
-            self.normalizeY = self.normalize
-        elif self.normalizeX and self.normalizeY:
-            self.normalize = True
-        else:
-            if self.normalize == None:
-                self.normalize = False
-            if self.normalizeX == None:
-                self.normalizeX = False
-            if self.normalizeY == None:
-                self.normalizeY = False
+        if self.normalize == True:
+            assert self.normalizeX == self.normalizeY == None or self.normalizeX == self.normalizeY == True, "normalize and normalizeX,Y field values don't match."
+            self.normalizeX = self.normalizeY = True
+
+        if self.normalizeX == None:
+            self.normalizeX = False
+        if self.normalizeY == None:
+            self.normalizeY = False
+        if self.normalize == None:
+            self.normalize = self.normalizeX and self.normalizeY
 
 @dataclass
 class OptimizerConfig:
@@ -84,6 +81,7 @@ class TrainConfig:
     loss: str = field(metadata={"help": "Loss function: ['mse', 'mae', 'smoothl1']"})
     epoch: int = field(metadata={"help": "Number of epochs to train."})
     batch_size: int = field(metadata={"help": "Batch size. Assigned automatically during hyperparameter tuning."})
+    validation_interval: int = field(default=1, metadata={"help": "Get validation loss every `validation_interval` epochs."})
 
     model: ModelConfig = field(default_factory=ModelConfig)
     optim: OptimizerConfig = field(default_factory=OptimizerConfig)
