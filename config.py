@@ -10,6 +10,8 @@ programmer to correct.
 from dataclasses import dataclass, field
 from typing import List, Optional
 from pathlib import Path
+import re
+import traceback
 
 @dataclass
 class DatasetConfig:
@@ -59,18 +61,35 @@ class ModelConfig:
         if self.normalize == None:
             self.normalize = self.normalizeX and self.normalizeY
 
+def parse_lr_scheduler(lr: str):
+    """Parse lr and return type, initial_lr, *other_params"""
+    if (match := re.match('([0-9\\.]+)', lr)):
+        start: float = float(match.groups()[0])
+        return 'constant', start
+    elif (match := re.match('linear\\(([0-9\\.]+)-([0-9\\.]+)\\)', lr)):
+        start, end = match.groups()
+        start = float(start)
+        end = float(end)
+        return 'linear', start, end
+    else:
+        raise Exception(f"[BUG] LR Schedule not supported '{lr}'")
+
 @dataclass
 class OptimizerConfig:
     """Configuration for Optimizer."""
 
     optimizer: str = field(metadata={"help": "Optimizer to use. [rmsprop, adagrad, adamw]"})
-    lr: float = field(metadata={"help": "Learning rate of Optimizer."})
+    lr: str = field(metadata={"help": "Learning rate of Optimizer. Can be a string."})
     weight_decay: float = field(metadata={"help": "Optimizer weight decay"})
 
     def __post_init__(self):
         """Validate the config."""
         check_member('optimizer', self.optimizer, ['rmsprop', 'adagrad', 'adamw'])
-
+        try:
+            parse_lr_scheduler(self.lr)
+        except Exception as e:
+            traceback.print_exc()
+            raise e
 
 @dataclass
 class TrainConfig:

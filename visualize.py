@@ -28,7 +28,7 @@ def visualize_weights(model: torch.nn.Module, path: Path):
 def visualize_loss(log_dir: Path, fig_dir: Path):
     def read_loss(path):
         with open(path, "r") as f:
-            losses = [(int(epoch), float(loss)) for (epoch, loss, t) in csv.reader(f)]
+            losses = [(int(row[0]), float(row[1])) for row in csv.reader(f)]
         return pd.DataFrame(losses, columns=("epoch", "loss"))
 
 

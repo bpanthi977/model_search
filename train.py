@@ -11,7 +11,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from tqdm import tqdm
 import pyrallis
 
-from config import Config, TrainConfig, OptimizerConfig
+from config import Config, TrainConfig, OptimizerConfig, parse_lr_scheduler
 from dataset import Dataset, load_dataset
 from model import MLP, create_model
 from visualize import visualize_weights, visualize_loss
@@ -58,16 +58,34 @@ def get_loss_fn(loss: str):
 
 def get_optimizer(config: OptimizerConfig, model: nn.Module):
     """Create optimizer for given config."""
+    lr: float = parse_lr_scheduler(config.lr)[1]
     if config.optimizer == 'adamw':
-        return torch.optim.AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
+        return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=config.weight_decay)
     elif config.optimizer == 'rmsprop':
-        return torch.optim.RMSprop(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
+        return torch.optim.RMSprop(model.parameters(), lr=lr, weight_decay=config.weight_decay)
     elif config.optimizer == 'adagrad':
-        return torch.optim.Adagrad(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
+        return torch.optim.Adagrad(model.parameters(), lr=lr, weight_decay=config.weight_decay)
     else:
         assert False, f"Impossible value of optimizer {config.optimizer}. Fix validate in OptimizerConfig."
 
-def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
+def get_lr_scheduler(lr: str, optimizer: torch.optim.Optimizer, total_epochs: int, last_epoch: int = -1):
+    args = parse_lr_scheduler(lr)
+    lr_type = args[0]
+    start = args[1]
+    if lr_type == 'constant':
+        return torch.optim.lr_scheduler.ConstantLR(optimizer, 1, total_epochs, last_epoch)
+    elif lr_type == 'linear':
+        end = args[2]
+        def lambda_lr(epoch):
+            if epoch >= total_epochs:
+                return end / start
+            else:
+                return 1 + (end - start) / start * epoch / (total_epochs - 1)
+        return torch.optim.lr_scheduler.LambdaLR(optimizer, lambda_lr, last_epoch)
+    else:
+        raise Exception(f"[BUG] LR Schedule not supported '{lr}'")
+
+def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks, last_epoch: int = -1):
     """
     Train the model with optimizer, loss function and other things as per config.
 
@@ -79,11 +97,12 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
     val_dataset = TensorDataset(dataset.validateX, dataset.validateY)
     val_dataloader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False)
 
-    epoch_bar = tqdm(range(config.epoch), unit="epoch")
+    epoch_bar = tqdm(range(last_epoch + 1, config.epoch), unit="epoch")
     device = model.get_device()
 
     optimizer = get_optimizer(config.optim, model)
     loss_fn = get_loss_fn(config.loss)
+    lr_scheduler = get_lr_scheduler(config.optim.lr, optimizer, config.epoch, last_epoch)
 
     print(model)
 
@@ -146,7 +165,8 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
         epoch_bar.set_postfix({
             f"Train {config.loss}": f"{mean_train_loss:.4f}",
             f"Val {config.loss}": f"{mean_val_loss:.4f}",
-            f"ΔY": train_y.agg()
+            f"ΔY": train_y.agg(),
+            f"lr": optimizer.param_groups[0]['lr']
         })
 
         for callback in callbacks:
@@ -155,8 +175,11 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks):
                 "train_loss": mean_train_loss,
                 "val_loss": mean_val_loss,
                 "train_time": train_time,
-                "val_time": val_time
+                "val_time": val_time,
+                "lr": optimizer.param_groups[0]['lr']
             })
+
+        lr_scheduler.step()
 
 def format_duration(d):
     """Format to h:m:s format."""
@@ -191,7 +214,7 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
     run_dir.mkdir(parents=True, exist_ok=True)
 
     final_val_loss = None
-    epoch_offset = 0
+    last_epoch = -1
     with open(run_dir.joinpath("config.yaml"), "w") as f:
         f.write(pyrallis.dump(config))
         print(config)
@@ -208,8 +231,8 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
 
             epoch = info["epoch"]
             final_val_loss = info["val_loss"]
-            w_train.writerow([epoch+epoch_offset+1, info["train_loss"], info["train_time"]])
-            w_val.writerow([epoch+epoch_offset+1, final_val_loss, info["val_time"]])
+            w_train.writerow([epoch+1, info["train_loss"], info["train_time"], info["lr"]])
+            w_val.writerow([epoch+1, final_val_loss, info["val_time"]])
             f_train.flush()
             f_val.flush()
 
@@ -226,7 +249,7 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
         checkpoint_model = None
         if checkpoint:
             checkpoint_model, epoch = checkpoint
-            epoch_offset = epoch
+            last_epoch = epoch - 1
 
         model = create_model(config.train, dataset, checkpoint_model)
 
@@ -235,8 +258,7 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
 
         try:
             log_gpu_utilization(interval=10, log_file=run_dir.joinpath('gpu_utilization.csv'), stop_flag=stop_fn, new_thread=True)
-            config.train.epoch -= epoch_offset
-            train(model, dataset, config.train, [callback, *callbacks])
+            train(model, dataset, config.train, [callback, *callbacks], last_epoch)
         except KeyboardInterrupt:
             pass
         finally:

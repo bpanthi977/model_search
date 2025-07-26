@@ -40,7 +40,11 @@ def read_run(trial_dir: Path):
 
     config = pyrallis.parse(config_class=Config, config_path=config_file, args=[])
     with open(trial_dir.joinpath("train_loss.csv"), "r") as f:
-        train_loss = [[int(epoch), float(loss), float(time)] for [epoch, loss, time] in list(csv.reader(f))]
+        def parse_row(row):
+            lr = row[3] if len(row) >= 4 else config.train.optim.lr
+            # epoch, loss, time, lr
+            return [int(row[0]), float(row[1]), float(row[2]), float(lr)]
+        train_loss = [parse_row(row) for row in list(csv.reader(f))]
 
     with open(trial_dir.joinpath("val_loss.csv"), "r") as f:
         val_loss = [[int(epoch), float(loss), float(time)] for [epoch, loss, time] in list(csv.reader(f))]
