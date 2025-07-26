@@ -2,6 +2,7 @@
 import argparse
 import os
 import sys
+import shutil
 from pathlib import Path
 from h5py import Dataset
 import pyrallis
@@ -31,14 +32,17 @@ def train(config: Config, dataset: Optional[Dataset], redirect_io: bool, checkpo
     seed = int.from_bytes(os.urandom(8), byteorder='big')
     rng = random.Random(seed)
     random_suffix = ''.join([rng.choice(string.ascii_letters) for i in range(4)])
-    if checkpoint_path:
-        trial_name = checkpoint_path.name
-    else:
-        trial_name = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + random_suffix
+    trial_name = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + random_suffix
+    run_dir = config.logs_dir.joinpath(config.study_name).joinpath(f"{trial_name}")
 
+    if checkpoint_path:
+        shutil.copytree(checkpoint_path, run_dir)
+        with open(run_dir.joinpath("continue_from"), "w") as f:
+            f.writelines([checkpoint_path.name])
+
+    run_dir.mkdir(parents=True, exist_ok=True)
+    print(run_dir)
     if redirect_io:
-        run_dir = config.logs_dir.joinpath(config.study_name).joinpath(f"{trial_name}")
-        run_dir.mkdir(parents=True, exist_ok=True)
         redirect_output(run_dir.joinpath("stdout.txt"))
 
     loss = train_log(config, trial_id=trial_name, callbacks=[], dataset=dataset)
