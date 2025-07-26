@@ -28,7 +28,9 @@ def redirect_output(path: Path):
 
 def train(config: Config, dataset: Optional[Dataset], redirect_io: bool, checkpoint_path: Optional[Path]):
     ## Generate a random suffix so that train started at same time don't clash
-    random_suffix = ''.join([random.choice(string.ascii_letters) for i in range(4)])
+    seed = int.from_bytes(os.urandom(8), byteorder='big')
+    rng = random.Random(seed)
+    random_suffix = ''.join([rng.choice(string.ascii_letters) for i in range(4)])
     if checkpoint_path:
         trial_name = checkpoint_path.name
     else:
