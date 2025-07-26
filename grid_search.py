@@ -10,7 +10,7 @@ import torch.multiprocessing as mp
 import logs
 from config import Config, DatasetConfig
 from dataset import load_dataset, Dataset
-from main import train
+from main import train, set_all_seeds
 
 def load_shared_dataset(config: DatasetConfig):
     dataset = load_dataset(config)
