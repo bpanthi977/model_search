@@ -26,10 +26,13 @@ def redirect_output(path: Path):
     os.dup2(log_file.fileno(), sys.stdout.fileno())
     os.dup2(log_file.fileno(), sys.stderr.fileno())
 
-def train(config: Config, dataset: Optional[Dataset], redirect_io: bool):
+def train(config: Config, dataset: Optional[Dataset], redirect_io: bool, checkpoint_path: Optional[Path]):
     ## Generate a random suffix so that train started at same time don't clash
     random_suffix = ''.join([random.choice(string.ascii_letters) for i in range(4)])
-    trial_name = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + random_suffix
+    if checkpoint_path:
+        trial_name = checkpoint_path.name
+    else:
+        trial_name = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + random_suffix
 
     if redirect_io:
         run_dir = config.logs_dir.joinpath(config.study_name).joinpath(f"{trial_name}")
@@ -56,6 +59,7 @@ if __name__ == "__main__":
     )
     parser.add_argument('-h', '--help', action='store_true')
     parser.add_argument('-c', '--config')
+    parser.add_argument('--checkpoint')
     parser.add_argument('-l', '--log-stdout', action='store_true')
     parser.add_argument('--seed')
     parser.add_argument('--tune', action='store_true')
@@ -69,15 +73,34 @@ if __name__ == "__main__":
 
     set_all_seeds(int(args.seed or '42'))
 
+    checkpoint_path = None
+    if args.checkpoint:
+        checkpoint_path = Path(args.checkpoint)
+        if not checkpoint_path.exists():
+            print(f"Checkpoint path doesn't exits {path}")
+            exit(1)
+
+        if args.config:
+            print(f"Can't specify both --config and --checkpoint. Use one.")
+            exit(1)
+
+        for i in range(0, len(args_rest), 2):
+            arg = args_rest[i]
+            if arg != "--train.epoch":
+                print(f"You can only override --train.epoch argument. Can't change {arg}.")
+                exit(1)
+
     try:
-        config = pyrallis.parse(config_class=Config, config_path=args.config, args=args_rest)
+        config_path = args.config or checkpoint_path.joinpath('config.yaml')
+        config = pyrallis.parse(config_class=Config, config_path=config_path, args=args_rest)
     except pyrallis.ParsingError as e:
         print(f"Failure to parse config file. Details:\n{e}")
         exit(1)
 
+
     # Run train or tuning
     if not args.tune: # just train
-        train(config, None, args.log_stdout)
+        train(config, None, args.log_stdout, checkpoint_path)
     else:
         tune(config)
 

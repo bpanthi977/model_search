@@ -87,12 +87,17 @@ class Normalization:
             return (False, torch.tensor(1), torch.tensor(1))
 
 class MLP(nn.Module):
-    def __init__(self, device, input_dim, output_dim, config: ModelConfig, normalize: Normalization):
+    def __init__(self, device, input_dim, output_dim, config: ModelConfig, normalize: Normalization, checkpoint: Optional[torch.jit.ScriptModule]):
         super().__init__()
         self.device = device
         normalize.to(device)
         self.normalizeX = normalize.X()
         self.normalizeY = normalize.Y()
+
+        if checkpoint:
+            self.model = checkpoint.model
+            self.to(device)
+            return
 
         layers = []
         fan_in = input_dim
@@ -136,7 +141,13 @@ class MLP(nn.Module):
     def get_device(self):
         return self.device
 
-def create_model(config: TrainConfig, dataset: Dataset):
+    def set_device(self, device):
+        self.normalizeX[1].to(device)
+        self.normalizeY[1].to(device)
+        self.to(device)
+        self.device = device
+
+def create_model(config: TrainConfig, dataset: Dataset, checkpoint: Optional[torch.jit.ScriptModule] = None):
     return MLP(
         torch.device(config.device),
         dataset.input_dim(),
@@ -147,5 +158,6 @@ def create_model(config: TrainConfig, dataset: Dataset):
             dataset.trainX.std(dim=0)  if config.model.normalizeX else None,
             dataset.trainY.mean(dim=0) if config.model.normalizeY else None,
             dataset.trainY.std(dim=0)  if config.model.normalizeY else None
-        )
+        ),
+        checkpoint
     )

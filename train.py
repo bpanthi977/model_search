@@ -3,6 +3,7 @@
 import csv
 from datetime import datetime
 from typing import Optional
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -165,6 +166,23 @@ def format_duration(d):
     s = int(ts - h * 60 * 60 - m * 60)
     return f"{h}:{m}:{s}"
 
+def read_checkpoint(run_dir: Path):
+    """Read previous model train results."""
+    model_path = run_dir.joinpath('model.pt')
+    train_loss_path = run_dir.joinpath('train_loss.csv')
+
+    if model_path.exists() and train_loss_path.exists():
+        model = torch.jit.load(model_path)
+        with open(train_loss_path, "r") as f:
+            reader = csv.reader(f)
+            lines = [line for line in reader]
+            if len(lines) == 0:
+                epoch = 0
+            else:
+                epoch = int(lines[-1][0])
+        return (model, epoch)
+
+
 def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional[Dataset]) -> float:
     """Start training and save config, model, loss curves to logs_dir/study_name/trail_id directory."""
     # Save config and loss
@@ -173,13 +191,14 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
     run_dir.mkdir(parents=True, exist_ok=True)
 
     final_val_loss = None
+    epoch_offset = 0
     with open(run_dir.joinpath("config.yaml"), "w") as f:
         f.write(pyrallis.dump(config))
         print(config)
 
     with (
-            open(run_dir.joinpath("train_loss.csv"), "w", newline='') as f_train,
-            open(run_dir.joinpath("val_loss.csv"), "w", newline='') as f_val
+            open(run_dir.joinpath("train_loss.csv"), "a", newline='') as f_train,
+            open(run_dir.joinpath("val_loss.csv"), "a", newline='') as f_val
     ):
         w_train = csv.writer(f_train)
         w_val = csv.writer(f_val)
@@ -189,8 +208,8 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
 
             epoch = info["epoch"]
             final_val_loss = info["val_loss"]
-            w_train.writerow([epoch+1, info["train_loss"], info["train_time"]])
-            w_val.writerow([epoch+1, final_val_loss, info["val_time"]])
+            w_train.writerow([epoch+epoch_offset+1, info["train_loss"], info["train_time"]])
+            w_val.writerow([epoch+epoch_offset+1, final_val_loss, info["val_time"]])
             f_train.flush()
             f_val.flush()
 
@@ -199,22 +218,29 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
         def stop_fn():
             return stop_gpu_logging
 
-        log_gpu_utilization(interval=10, log_file=run_dir.joinpath('gpu_utilization.csv'), stop_flag=stop_fn, new_thread=True)
-
         # Load data, train and evaluate
         if not dataset:
             dataset = load_dataset(config.dataset)
 
-        model = create_model(config.train, dataset)
+        checkpoint = read_checkpoint(run_dir)
+        checkpoint_model = None
+        if checkpoint:
+            checkpoint_model, epoch = checkpoint
+            epoch_offset = epoch
+
+        model = create_model(config.train, dataset, checkpoint_model)
+
         with open(run_dir.joinpath("model_shape"), "w") as f:
             f.write(str(model))
 
         try:
+            log_gpu_utilization(interval=10, log_file=run_dir.joinpath('gpu_utilization.csv'), stop_flag=stop_fn, new_thread=True)
+            config.train.epoch -= epoch_offset
             train(model, dataset, config.train, [callback, *callbacks])
         except KeyboardInterrupt:
             pass
-
-        stop_gpu_logging = True
+        finally:
+            stop_gpu_logging = True
 
     # Save model
     model_script = torch.jit.script(model.to(torch.device('cpu')).double())
