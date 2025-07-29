@@ -7,6 +7,7 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
+from torch.optim import lr_scheduler
 from torch.utils.data import TensorDataset, DataLoader
 from tqdm import tqdm
 import pyrallis
@@ -85,7 +86,17 @@ def get_lr_scheduler(lr: str, optimizer: torch.optim.Optimizer, total_epochs: in
     else:
         raise Exception(f"[BUG] LR Schedule not supported '{lr}'")
 
-def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks, last_epoch: int = -1):
+class Env:
+    epoch: Optional[int] = None
+    best_val_loss: float = float('+inf')
+    model: torch.nn.Module
+    optimizer: torch.optim.Optimizer
+    lr_scheduler: torch.optim.lr_scheduler.LRScheduler
+
+    def __init__(self):
+        pass
+
+def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint = None):
     """
     Train the model with optimizer, loss function and other things as per config.
 
@@ -97,13 +108,26 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks, last_epo
     val_dataset = TensorDataset(dataset.validateX, dataset.validateY)
     val_dataloader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False)
 
-    epoch_bar = tqdm(range(last_epoch + 1, config.epoch), unit="epoch")
-    device = model.get_device()
+    last_epoch = -1
 
+    model = create_model(config, dataset)
+    device = model.get_device()
     optimizer = get_optimizer(config.optim, model)
     loss_fn = get_loss_fn(config.loss)
     lr_scheduler = get_lr_scheduler(config.optim.lr, optimizer, config.epoch, last_epoch)
 
+    env.model = model
+    env.optimizer = optimizer
+    env.lr_scheduler = lr_scheduler
+
+    if checkpoint:
+        last_epoch = checkpoint['epoch']
+        env.best_val_loss = checkpoint['best_val_loss']
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
+
+    epoch_bar = tqdm(range(last_epoch + 1, config.epoch), unit="epoch")
     print(model)
 
     for epoch in epoch_bar:
@@ -169,6 +193,8 @@ def train(model: MLP, dataset: Dataset, config: TrainConfig, callbacks, last_epo
             f"lr": optimizer.param_groups[0]['lr']
         })
 
+        env.epoch = epoch
+        env.best_val_loss = min(env.best_val_loss, mean_val_loss)
         for callback in callbacks:
             callback({
                 "epoch": epoch,
@@ -189,22 +215,15 @@ def format_duration(d):
     s = int(ts - h * 60 * 60 - m * 60)
     return f"{h}:{m}:{s}"
 
-def read_checkpoint(run_dir: Path):
-    """Read previous model train results."""
-    model_path = run_dir.joinpath('model.pt')
-    train_loss_path = run_dir.joinpath('train_loss.csv')
-
-    if model_path.exists() and train_loss_path.exists():
-        model = torch.jit.load(model_path)
-        with open(train_loss_path, "r") as f:
-            reader = csv.reader(f)
-            lines = [line for line in reader]
-            if len(lines) == 0:
-                epoch = 0
-            else:
-                epoch = int(lines[-1][0])
-        return (model, epoch)
-
+def save_checkpoint(env: Env, checkpoint_file: Path):
+    if env.epoch:
+        torch.save({
+            'epoch': env.epoch,
+            'best_val_loss': env.best_val_loss,
+            'model_state_dict': env.model.state_dict(),
+            'optimizer_state_dict': env.optimizer.state_dict(),
+            'lr_scheduler_state_dict': env.lr_scheduler.state_dict()
+        }, checkpoint_file)
 
 def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional[Dataset]) -> float:
     """Start training and save config, model, loss curves to logs_dir/study_name/trail_id directory."""
@@ -214,7 +233,8 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
     run_dir.mkdir(parents=True, exist_ok=True)
 
     final_val_loss = None
-    last_epoch = -1
+    env = Env()
+
     with open(run_dir.joinpath("config.yaml"), "w") as f:
         f.write(pyrallis.dump(config))
         print(config)
@@ -231,6 +251,9 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
 
             epoch = info["epoch"]
             final_val_loss = info["val_loss"]
+            if final_val_loss == env.best_val_loss:
+                save_checkpoint(env, run_dir.joinpath("checkpoint_best.pth"))
+
             w_train.writerow([epoch+1, info["train_loss"], info["train_time"], info["lr"]])
             w_val.writerow([epoch+1, final_val_loss, info["val_time"]])
             f_train.flush()
@@ -245,28 +268,25 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
         if not dataset:
             dataset = load_dataset(config.dataset)
 
-        checkpoint = read_checkpoint(run_dir)
-        checkpoint_model = None
-        if checkpoint:
-            checkpoint_model, epoch = checkpoint
-            last_epoch = epoch - 1
-
-        model = create_model(config.train, dataset, checkpoint_model)
-
-        with open(run_dir.joinpath("model_shape"), "w") as f:
-            f.write(str(model))
+        # Restore checkpoint
+        checkpoint_path = run_dir.joinpath('checkpoint.pth')
+        checkpoint = None
+        if checkpoint_path.exists():
+            checkpoint = torch.load(checkpoint_path)
 
         try:
             log_gpu_utilization(interval=10, log_file=run_dir.joinpath('gpu_utilization.csv'), stop_flag=stop_fn, new_thread=True)
-            train(model, dataset, config.train, [callback, *callbacks], last_epoch)
+            train(dataset, config.train, [callback, *callbacks], env, checkpoint)
         except KeyboardInterrupt:
             pass
         finally:
             stop_gpu_logging = True
 
     # Save model
+    model = env.model
     model_script = torch.jit.script(model.to(torch.device('cpu')).double())
     model_script.save(run_dir.joinpath("model.pt"))
+    save_checkpoint(env, run_dir.joinpath('checkpoint.pth'))
 
     with open(run_dir.joinpath("info.csv"), "w", newline='') as f:
         csv.writer(f).writerows(
