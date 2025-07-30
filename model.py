@@ -99,6 +99,7 @@ class NALU(nn.Module):
         self.G = nn.Parameter(torch.empty(output_dim, input_dim, dtype=dtype))
         self.reset_parameters()
 
+    @torch.jit.ignore
     def reset_parameters(self):
         nn.init.kaiming_uniform_(self.W_hat)
         nn.init.kaiming_uniform_(self.M_hat)
@@ -113,6 +114,9 @@ class NALU(nn.Module):
         g = torch.sigmoid(torch.matmul(x, self.G.T))
 
         return g * a + (1 - g) * m
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(in_features={self.W_hat.shape[1]}, out_features={self.W_hat.shape[0]})"
 
 class MLP(nn.Module):
     def __init__(self, device, input_dim, output_dim, config: ModelConfig, normalize: Normalization):
