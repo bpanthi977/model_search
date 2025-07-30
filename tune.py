@@ -33,7 +33,7 @@ def create_train_config(study: optuna.Trial, config: Config) -> TrainConfig:
 
         train.model.hidden_layers = hidden_layers
 
-    train.optim.lr = str(study.suggest_loguniform("lr", config.tuning.lr_range[0], config.tuning.lr_range[1]))
+    train.optim.lr = str(study.suggest_float("lr", config.tuning.lr_range[0], config.tuning.lr_range[1], log=True))
     train.batch_size = study.suggest_categorical("batch_size", config.tuning.batch_size_values)
     if config.tuning.tune_normalize:
         train.model.normalize = study.suggest_categorical('normalize', [True, False])
