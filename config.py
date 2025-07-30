@@ -8,7 +8,7 @@ programmer to correct.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Union
 from pathlib import Path
 import re
 import traceback
@@ -26,6 +26,28 @@ def check_member(name, val, lst):
     if not val in lst:
         raise ValueError(f"Value of {name} must be on of the {lst}. {val} is not valid.")
 
+def parse_hidden_layers(hidden_layers: List[Union[str, int]]):
+    result = []
+    for i, hl in enumerate(hidden_layers):
+        if isinstance(hl, int):
+            result.append(('linear', hl))
+        elif isinstance(hl, str):
+            if match := re.match('NALU\\(([0-9]+)\\)', hl):
+                size = int(match.groups()[0])
+                assert size != 0
+                result.append(('NALU', size))
+            elif hl == 'NALU':
+                if i + 1 != len(hidden_layers):
+                    raise ValueError(f"Invalid hidden_layer {hl}: type without size is only allowed as last layer")
+                result.append(('NALU', 0))
+            elif match := re.match('([0-9]+)', hl):
+                size = int(match.groups()[0])
+                assert size != 0
+                result.append(('linear', size))
+            else:
+                raise ValueError(f"Invalid hidden_layer specification {hl}")
+    return result
+
 @dataclass
 class ModelConfig:
     """Configuration for Model architecture."""
@@ -33,7 +55,7 @@ class ModelConfig:
     init: str = field(metadata={"help": "Initialization for weights. [u (Uniform), udd (Uniform diagonally dominant), ku (kaiming uniform), xu (Xavier uinform), default]"})
     init_param: List[float] = field(metadata={"help": "Parameters for uniform initialization function. U[-1, 1], U[-10, 10]"})
     activation: str = field(metadata={"help": "Activation function. [relu, tanh, leaky_relu]"})
-    hidden_layers: List[int] = field(metadata={"help": "Hidden layers to use."})
+    hidden_layers: List[Union[str, int]] = field(metadata={"help": "Hidden layers to use."})
     dropout: List[float] = field(metadata={"help": "Dropout percentage to use after activation"})
     normalize: bool = field(default=None, metadata={"help": "Deprecated. True implies both normalizeX and normalizeY are true."})
     normalizeX: bool = field(default=None, metadata={"help": "Normalize input."})
@@ -60,6 +82,8 @@ class ModelConfig:
             self.normalizeY = False
         if self.normalize == None:
             self.normalize = self.normalizeX and self.normalizeY
+
+        parse_hidden_layers(self.hidden_layers)
 
 def parse_lr_scheduler(lr: str):
     """Parse lr and return type, initial_lr, *other_params"""

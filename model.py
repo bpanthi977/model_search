@@ -1,10 +1,11 @@
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Union
+import re
 
 import torch
 import torch.nn as nn
 
-from config import TrainConfig, ModelConfig
+from config import TrainConfig, ModelConfig, parse_hidden_layers
 from dataset import Dataset
 
 
@@ -86,6 +87,33 @@ class Normalization:
         else:
             return (False, torch.tensor(1), torch.tensor(1))
 
+class NALU(nn.Module):
+    """
+    Neural Arithmetic Logic Units.
+    Layer designed to learn arithmetic: +, -, *, / exactly.
+    """
+    def __init__(self, input_dim, output_dim, dtype: torch.dtype):
+        super().__init__()
+        self.W_hat = nn.Parameter(torch.empty(output_dim, input_dim, dtype=dtype))
+        self.M_hat = nn.Parameter(torch.empty(output_dim, input_dim, dtype=dtype))
+        self.G = nn.Parameter(torch.empty(output_dim, input_dim, dtype=dtype))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.kaiming_uniform_(self.W_hat)
+        nn.init.kaiming_uniform_(self.M_hat)
+        nn.init.kaiming_uniform_(self.G)
+
+    def forward(self, x):
+        W = torch.tanh(self.W_hat) * torch.sigmoid(self.M_hat)
+        a = torch.matmul(x, W.T)
+
+        log_x = torch.log(torch.abs(x) + 1e-7)
+        m = torch.exp(torch.matmul(log_x, W.T))
+        g = torch.sigmoid(torch.matmul(x, self.G.T))
+
+        return g * a + (1 - g) * m
+
 class MLP(nn.Module):
     def __init__(self, device, input_dim, output_dim, config: ModelConfig, normalize: Normalization):
         super().__init__()
@@ -96,8 +124,21 @@ class MLP(nn.Module):
 
         layers = []
         fan_in = input_dim
-        for (i, layer_dim) in enumerate(config.hidden_layers):
-            layers.append(nn.Linear(fan_in, layer_dim, dtype=torch.float64, bias=config.bias))
+        last_layer = 'linear'
+
+        def add_layer(layer_type, layer_dim):
+            if layer_type == 'linear':
+                layers.append(nn.Linear(fan_in, layer_dim, dtype=torch.float64, bias=config.bias))
+            elif layer_type == 'NALU':
+                layers.append(NALU(fan_in, layer_dim, dtype=torch.float64))
+            else:
+                raise ValueError(f'[BUG] layer_type {layer_type} not implemented.')
+
+        for (i, (layer_type, layer_dim)) in enumerate(parse_hidden_layers(config.hidden_layers)):
+            if layer_dim == 0:
+                last_layer = layer_type
+                break
+            add_layer(layer_type, layer_dim)
             fan_in = layer_dim
 
             if config.batchnorm:
@@ -107,8 +148,8 @@ class MLP(nn.Module):
 
             if i < len(config.dropout):
                 layers.append(nn.Dropout(config.dropout[i]))
-        layers.append(nn.Linear(fan_in, output_dim, dtype=torch.float64, bias=config.bias))
 
+        add_layer(last_layer, output_dim)
         self.model = nn.Sequential(*layers)
         self.model.apply(lambda m: init_weights(m, config))
         self.to(device)
