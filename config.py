@@ -146,7 +146,7 @@ class TuningConfig:
     """Configuration for hyperparameter tuning."""
 
     trials: int
-    hidden_layers_sizes: List[int]
+    hidden_layers_size_range: List[int]
     n_hidden_layers: List[int]
     hidden_layer_types: List[str]
     lr_range: List[float]
@@ -166,6 +166,9 @@ class TuningConfig:
         lr_range = self.lr_range
         assert len(lr_range) == 2, "lr_range must be two floats (low, high)"
         assert self.lr_range[0] <= self.lr_range[1], f"lr_range must be (low, high) but {lr_range[0]} > {lr_range[1]}"
+        hl_range = self.hidden_layers_size_range
+        assert len(hl_range) == 2, "hidden_layers_size_range must be two floats (low, high)"
+        assert hl_range[0] <= hl_range[1], f"hidden_layers_size_range must be (low, high) but {hl_range[0]} > {hl_range[1]}"
 
 @dataclass
 class Config:

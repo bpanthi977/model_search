@@ -26,7 +26,8 @@ def create_train_config(study: optuna.Trial, config: Config) -> TrainConfig:
             hidden_layers.append(hl_type)
         else:
             for i in range(n_hidden_layers):
-                hl_size = study.suggest_categorical(f"hidden_layers_sizes{i}", config.tuning.hidden_layers_sizes)
+                hl_range = config.tuning.hidden_layers_size_range
+                hl_size = study.suggest_int(f"hidden_layers_sizes{i}", hl_range[0], hl_range[1])
                 hl_type = study.suggest_categorical(f"hidden_layer_type{i}", config.tuning.hidden_layer_types)
                 hidden_layers.append(f"{hl_type}({hl_size})")
 
