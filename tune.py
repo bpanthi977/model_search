@@ -3,25 +3,37 @@ import pickle
 import dataclasses
 import optuna
 from pathlib import Path
+from datetime import datetime
 
+from dataset import load_dataset
 from train import train_log
 from config import Config, TrainConfig
 
 
 def create_train_config(study: optuna.Trial, config: Config) -> TrainConfig:
     """Return a train config for the tuning study."""
-    if not config.train.hidden_layers:
-        n_hidden_layers = study.suggest_categorical("hidden_layers", config.tuning.n_hidden_layers)
-        if n_hidden_layers > 0:
-            hidden_layer_size = study.suggest_categorical("hidden_layers_sizes", config.tuning.hidden_layers_sizes)
-            hidden_layers = [hidden_layer_size] * n_hidden_layers
-        else:
-            hidden_layers = []
+    if not config.tuning:
+        return config.train
 
     train = dataclasses.replace(config.train) # clone
-    train.hidden_layers = config.train.hidden_layers or hidden_layers
-    train.lr = config.train.lr or study.suggest_categorical("lr", config.tuning.lr_values)
-    train.batch_size = config.train.batch_size or study.suggest_categorical("batch_size", config.tuning.batch_size_values)
+    if len(config.train.model.hidden_layers) == 0:
+        n_hidden_layers = study.suggest_categorical("hidden_layers", config.tuning.n_hidden_layers)
+        hidden_layers = []
+        if n_hidden_layers == 0:
+            hl_type = study.suggest_categorical(f"hidden_layer_type_last", config.tuning.hidden_layer_types)
+            hidden_layers.append(hl_type)
+        else:
+            for i in range(n_hidden_layers):
+                hl_size = study.suggest_categorical(f"hidden_layers_sizes{i}", config.tuning.hidden_layers_sizes)
+                hl_type = study.suggest_categorical(f"hidden_layer_type{i}", config.tuning.hidden_layer_types)
+                hidden_layers.append(f"{hl_type}({hl_size})")
+
+        train.model.hidden_layers = hidden_layers
+
+    train.optim.lr = str(study.suggest_loguniform("lr", config.tuning.lr_range[0], config.tuning.lr_range[1]))
+    train.batch_size = study.suggest_categorical("batch_size", config.tuning.batch_size_values)
+    if config.tuning.tune_normalize:
+        train.model.normalize = study.suggest_categorical('normalize', [True, False])
 
     return train
 
@@ -52,11 +64,14 @@ def tune(config: Config):
     study = optuna.create_study(direction="minimize", study_name=study_name, sampler=optuna.samplers.TPESampler(), storage=storage, load_if_exists=True)
 
     # Run the study
+    dataset = load_dataset(config.dataset)
     def objective(trial: optuna.Trial) -> float:
         train_config = create_train_config(trial, config)
         new_config = dataclasses.replace(config, train=train_config)
 
-        def pruning_callback(epoch, loss):
+        def pruning_callback(info):
+            epoch = info['epoch']
+            loss = info['val_loss']
             trial.report(loss, epoch)
             assert config.tuning
 
@@ -64,7 +79,8 @@ def tune(config: Config):
                 if trial.should_prune():
                     raise optuna.TrialPruned()
 
-        return train_log(new_config, trial.number, callbacks=[pruning_callback])
+        trial_name = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + str(trial.number)
+        return train_log(new_config, trial_name, callbacks=[pruning_callback], dataset=dataset)
 
     n_trials = config.tuning.trials - prev_trails_count(study)
     study.optimize(objective, n_trials=n_trials)

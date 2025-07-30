@@ -13,6 +13,8 @@ from pathlib import Path
 import re
 import traceback
 
+from torch.nn.modules import linear
+
 @dataclass
 class DatasetConfig:
     """Specify Dataset file and h5 group name."""
@@ -36,10 +38,14 @@ def parse_hidden_layers(hidden_layers: List[Union[str, int]]):
                 size = int(match.groups()[0])
                 assert size != 0
                 result.append(('NALU', size))
-            elif hl == 'NALU':
+            elif match := re.match('linear\\(([0-9]+)\\)', hl):
+                size = int(match.groups()[0])
+                assert size != 0
+                result.append(('linear', size))
+            elif hl == 'NALU' or hl == 'linear':
                 if i + 1 != len(hidden_layers):
                     raise ValueError(f"Invalid hidden_layer {hl}: type without size is only allowed as last layer")
-                result.append(('NALU', 0))
+                result.append((hl, 0))
             elif match := re.match('([0-9]+)', hl):
                 size = int(match.groups()[0])
                 assert size != 0
@@ -140,8 +146,10 @@ class TuningConfig:
     trials: int
     hidden_layers_sizes: List[int]
     n_hidden_layers: List[int]
-    lr_values: List[float]
+    hidden_layer_types: List[str]
+    lr_range: List[float]
     batch_size_values: List[int]
+    tune_normalize: bool
     enable_prune: bool
     trial_id: int = 0
 
@@ -151,6 +159,11 @@ class TuningConfig:
             return None
         else:
             return TuningConfig(**kwargs)
+
+    def __post_init__(self):
+        lr_range = self.lr_range
+        assert len(lr_range) == 2, "lr_range must be two floats (low, high)"
+        assert self.lr_range[0] <= self.lr_range[1], f"lr_range must be (low, high) but {lr_range[0]} > {lr_range[1]}"
 
 @dataclass
 class Config:
