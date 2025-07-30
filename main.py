@@ -16,6 +16,7 @@ import numpy as np
 from train import train_log
 from tune import tune
 from config import Config
+from validate_model import validate
 
 def redirect_output(path: Path):
     log_file = open(path, 'a')
@@ -66,6 +67,7 @@ if __name__ == "__main__":
     parser.add_argument('-h', '--help', action='store_true')
     parser.add_argument('-c', '--config')
     parser.add_argument('--checkpoint')
+    parser.add_argument('--validate', action='store_true')
     parser.add_argument('-l', '--log-stdout', action='store_true')
     parser.add_argument('--seed')
     parser.add_argument('--tune', action='store_true')
@@ -83,7 +85,7 @@ if __name__ == "__main__":
     if args.checkpoint:
         checkpoint_path = Path(args.checkpoint)
         if not checkpoint_path.exists():
-            print(f"Checkpoint path doesn't exits {path}")
+            print(f"Checkpoint path doesn't exits {checkpoint_path}")
             exit(1)
 
         if args.config:
@@ -105,7 +107,13 @@ if __name__ == "__main__":
 
 
     # Run train or tuning
-    if not args.tune: # just train
+    if args.validate:
+        if not checkpoint_path:
+            print(f"Specify --checkpoint for --validate.")
+            exit(1)
+
+        validate(config, checkpoint_path)
+    elif not args.tune: # just train
         train(config, None, args.log_stdout, checkpoint_path)
     else:
         tune(config)

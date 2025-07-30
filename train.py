@@ -2,8 +2,9 @@
 
 import csv
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional, TypedDict
 from pathlib import Path
+import typing
 
 import torch
 import torch.nn as nn
@@ -96,7 +97,14 @@ class Env:
     def __init__(self):
         pass
 
-def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint = None):
+class Checkpoint(TypedDict):
+    epoch: int
+    best_val_loss: float
+    model_state_dict: dict
+    optimizer_state_dict: dict
+    lr_scheduler_state_dict: dict
+
+def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint: Optional[Checkpoint]):
     """
     Train the model with optimizer, loss function and other things as per config.
 
@@ -121,7 +129,7 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
     env.lr_scheduler = lr_scheduler
 
     if checkpoint:
-        last_epoch = checkpoint['epoch']
+        last_epoch: int = checkpoint['epoch']
         env.best_val_loss = checkpoint['best_val_loss']
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -217,13 +225,14 @@ def format_duration(d):
 
 def save_checkpoint(env: Env, checkpoint_file: Path):
     if env.epoch:
-        torch.save({
+        checkpoint: Checkpoint = {
             'epoch': env.epoch,
             'best_val_loss': env.best_val_loss,
             'model_state_dict': env.model.state_dict(),
             'optimizer_state_dict': env.optimizer.state_dict(),
             'lr_scheduler_state_dict': env.lr_scheduler.state_dict()
-        }, checkpoint_file)
+        }
+        torch.save(checkpoint, checkpoint_file)
 
 def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional[Dataset]) -> float:
     """Start training and save config, model, loss curves to logs_dir/study_name/trail_id directory."""
@@ -270,7 +279,7 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
 
         # Restore checkpoint
         checkpoint_path = run_dir.joinpath('checkpoint.pth')
-        checkpoint = None
+        checkpoint: Optional[Checkpoint] = None
         if checkpoint_path.exists():
             checkpoint = torch.load(checkpoint_path)
 
