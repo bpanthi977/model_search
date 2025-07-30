@@ -131,6 +131,7 @@ class TrainConfig:
     epoch: int = field(metadata={"help": "Number of epochs to train."})
     batch_size: int = field(metadata={"help": "Batch size. Assigned automatically during hyperparameter tuning."})
     validation_interval: int = field(default=1, metadata={"help": "Get validation loss every `validation_interval` epochs."})
+    evaluation_metric: str = field(default='val_loss', metadata={'help': 'The evaluation metric to choose the best checkpoint and tuning. [val_loss, max_l1]'})
 
     model: ModelConfig = field(default_factory=ModelConfig)
     optim: OptimizerConfig = field(default_factory=OptimizerConfig)
@@ -138,6 +139,7 @@ class TrainConfig:
     def __post_init__(self):
         """Validate the config."""
         check_member('loss', self.loss, ['mse', 'mae', 'smoothl1'])
+        check_member('evaluation_metric', self.evaluation_metric, ['val_loss', 'max_l1'])
 
 @dataclass
 class TuningConfig:

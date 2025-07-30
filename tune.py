@@ -71,8 +71,14 @@ def tune(config: Config):
 
         def pruning_callback(info):
             epoch = info['epoch']
-            loss = info['val_loss']
-            trial.report(loss, epoch)
+            if config.train.evaluation_metric == 'val_loss':
+                metric = info['val_loss']
+            elif config.train.evaluation_metric == 'max_l1':
+                metric = info['max_l1']
+            else:
+                raise ValueError(f"Invalid evauation_metric {config.train.evaluation_metric}")
+
+            trial.report(metric, epoch)
             assert config.tuning
 
             if config.tuning.enable_prune:

@@ -46,8 +46,8 @@ def train(config: Config, dataset: Optional[Dataset], redirect_io: bool, checkpo
     if redirect_io:
         redirect_output(run_dir.joinpath("stdout.txt"))
 
-    loss = train_log(config, trial_id=trial_name, callbacks=[], dataset=dataset)
-    print(f"Loss = {loss}")
+    evaluation_metric_value = train_log(config, trial_id=trial_name, callbacks=[], dataset=dataset)
+    print(f"{config.train.evaluation_metric} = {evaluation_metric_value}")
 
 def set_all_seeds(seed: int = 42):
     random.seed(seed)

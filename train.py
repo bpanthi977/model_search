@@ -90,6 +90,7 @@ def get_lr_scheduler(lr: str, optimizer: torch.optim.Optimizer, total_epochs: in
 class Env:
     epoch: Optional[int] = None
     best_val_loss: float = float('+inf')
+    best_max_l1: float = float('+inf')
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
     lr_scheduler: torch.optim.lr_scheduler.LRScheduler
@@ -175,7 +176,7 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
         total_loss = torch.tensor(0.0).to(device)
         start = datetime.now()
 
-        val_y = MinMax()
+        val_l1 = MinMax()
         with torch.no_grad():
             for batch_X, batch_Y in batch_bar:
                 batch_X = batch_X.to(device)
@@ -185,9 +186,9 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
 
                 total_loss += loss.detach()
 
-                val_y.update(Y_pred - batch_Y)
+                val_l1.update(Y_pred - batch_Y)
                 batch_bar.set_postfix({
-                    f"ΔY": val_y.current()
+                    f"ΔY": val_l1.current()
                 })
 
             torch.cuda.synchronize()
@@ -201,13 +202,16 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
             f"lr": optimizer.param_groups[0]['lr']
         })
 
+        max_l1 = max(abs(val_l1.max), abs(val_l1.min)) or float('+inf')
         env.epoch = epoch
         env.best_val_loss = min(env.best_val_loss, mean_val_loss)
+        env.best_max_l1 = min(env.best_max_l1, max_l1)
         for callback in callbacks:
             callback({
                 "epoch": epoch,
                 "train_loss": mean_train_loss,
                 "val_loss": mean_val_loss,
+                "max_l1": max_l1,
                 "train_time": train_time,
                 "val_time": val_time,
                 "lr": optimizer.param_groups[0]['lr']
@@ -241,7 +245,7 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
     run_dir = config.logs_dir.joinpath(config.study_name).joinpath(f"{trial_id}")
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    final_val_loss = None
+    last_info: dict = {}
     env = Env()
 
     with open(run_dir.joinpath("config.yaml"), "w") as f:
@@ -256,15 +260,22 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
         w_val = csv.writer(f_val)
 
         def callback(info):
-            nonlocal final_val_loss
+            nonlocal last_info
+            last_info = info
 
             epoch = info["epoch"]
-            final_val_loss = info["val_loss"]
-            if final_val_loss == env.best_val_loss:
-                save_checkpoint(env, run_dir.joinpath("checkpoint_best.pth"))
-
+            val_loss = info["val_loss"]
+            max_l1 = info['max_l1']
+            if config.train.evaluation_metric == 'val_loss':
+                if val_loss == env.best_val_loss:
+                    save_checkpoint(env, run_dir.joinpath("checkpoint_best.pth"))
+            elif config.train.evaluation_metric == 'max_l1':
+                if max_l1 == env.best_max_l1:
+                    save_checkpoint(env, run_dir.joinpath("checkpoint_best.pth"))
+            else:
+                raise ValueError(f"[BUG] invalid evaluation metric {config.train.evaluation_metric}")
             w_train.writerow([epoch+1, info["train_loss"], info["train_time"], info["lr"]])
-            w_val.writerow([epoch+1, final_val_loss, info["val_time"]])
+            w_val.writerow([epoch+1, val_loss, info["val_time"], max_l1])
             f_train.flush()
             f_val.flush()
 
@@ -302,7 +313,10 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
             [["start_time", start.strftime("%Y%m%d-%H:%M:%S")],
              ["end_time", datetime.now().strftime("%Y%m%d-%H:%M:%S")],
              ["total_time", format_duration(datetime.now() - start)],
-             ["val_loss", final_val_loss],
+             ["val_loss", last_info['val_loss']],
+             ["max_l1", last_info['max_l1']],
+             ["best_val_loss", env.best_val_loss],
+             ["best_max_l1", env.best_max_l1],
              ["loss", config.train.loss],
              ["training_size", dataset.trainX.shape[0]],
              ["validation_size", dataset.validateX.shape[0]]]
@@ -318,4 +332,9 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
     print(run_dir)
 
     # Return the evaluation metric
-    return final_val_loss
+    if config.train.evaluation_metric == 'val_loss':
+        return last_info['val_loss']
+    elif config.train.evaluation_metric == 'max_l1':
+        return last_info['max_l1']
+    else:
+        raise ValueError(f"[BUG] invalid evaluation metric {config.train.evaluation_metric}")
