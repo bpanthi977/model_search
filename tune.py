@@ -4,6 +4,7 @@ import dataclasses
 import optuna
 from pathlib import Path
 from datetime import datetime
+import copy
 
 from dataset import load_dataset
 from train import train_log
@@ -15,7 +16,8 @@ def create_train_config(study: optuna.Trial, config: Config) -> TrainConfig:
     if not config.tuning:
         return config.train
 
-    train = dataclasses.replace(config.train) # clone
+    train = copy.deepcopy(config.train)
+
     if len(config.train.model.hidden_layers) == 0:
         n_hidden_layers = study.suggest_categorical("hidden_layers", config.tuning.n_hidden_layers)
         hidden_layers = []
@@ -34,6 +36,8 @@ def create_train_config(study: optuna.Trial, config: Config) -> TrainConfig:
     train.batch_size = study.suggest_categorical("batch_size", config.tuning.batch_size_values)
     if config.tuning.tune_normalize:
         train.model.normalize = study.suggest_categorical('normalize', [True, False])
+        train.model.normalizeX = train.model.normalize
+        train.model.normalizeY = train.model.normalize
 
     return train
 
