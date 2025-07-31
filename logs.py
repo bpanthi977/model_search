@@ -47,13 +47,20 @@ def read_run(trial_dir: Path):
         train_loss = [parse_row(row) for row in list(csv.reader(f))]
 
     with open(trial_dir.joinpath("val_loss.csv"), "r") as f:
-        val_loss = [[int(epoch), float(loss), float(time)] for [epoch, loss, time] in list(csv.reader(f))]
+        def parse_row(row):
+            max_l1 = float(row[3]) if len(row) >= 4 else None
+            return [int(row[0]), float(row[1]), float(row[2]), float(max_l1)]
+        # epoch, loss, time, max_l1
+        val_loss = [parse_row(row) for row in list(csv.reader(f))]
 
     info_file = trial_dir.joinpath("info.csv")
     time = None
     if info_file.exists():
         with open(info_file, "r") as f:
             entries = list(csv.reader(f))
+            if len(entries) < 3:
+                return False
+
             total_time = entries[2][1]
             minutes = 0
             factor = 60
