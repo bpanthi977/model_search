@@ -30,26 +30,27 @@ def check_member(name, val, lst):
 
 def parse_hidden_layers(hidden_layers: List[Union[str, int]]):
     result = []
+    layer_types = {'linear', 'NALU', 'NALUi1', 'NALUi2', 'MULT'}
+    layer_act = {'I'}
+    regex_match_types = '|'.join(layer_types)
+    regex_match_act = "|".join(layer_act)
     for i, hl in enumerate(hidden_layers):
         if isinstance(hl, int):
             result.append(('linear', hl))
         elif isinstance(hl, str):
-            if match := re.match('NALU\\(([0-9]+)\\)', hl):
-                size = int(match.groups()[0])
+            if match := re.match(rf'({regex_match_types})\(([0-9]+)\)(?:-({regex_match_act}))?', hl):
+                hl_type, size, act = match.groups()
+                size = int(size)
                 assert size != 0
-                result.append(('NALU', size))
-            elif match := re.match('linear\\(([0-9]+)\\)', hl):
-                size = int(match.groups()[0])
-                assert size != 0
-                result.append(('linear', size))
-            elif hl == 'NALU' or hl == 'linear':
+                result.append((hl_type, size, act))
+            elif hl in layer_types:
                 if i + 1 != len(hidden_layers):
                     raise ValueError(f"Invalid hidden_layer {hl}: type without size is only allowed as last layer")
-                result.append((hl, 0))
+                result.append((hl, 0, None))
             elif match := re.match('([0-9]+)', hl):
                 size = int(match.groups()[0])
                 assert size != 0
-                result.append(('linear', size))
+                result.append(('linear', size, None))
             else:
                 raise ValueError(f"Invalid hidden_layer specification {hl}")
     return result

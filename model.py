@@ -87,6 +87,101 @@ class Normalization:
         else:
             return (False, torch.tensor(1), torch.tensor(1))
 
+class NALUi1(nn.Module):
+    def __init__(self, input_dim, output_dim, dtype: torch.dtype):
+        super().__init__()
+        self.w_hat = nn.Parameter(torch.empty(input_dim, output_dim, dtype=dtype))
+        self.m_hat = nn.Parameter(torch.empty(input_dim, output_dim, dtype=dtype))
+        self.g = nn.Parameter(torch.empty(output_dim, dtype=dtype))
+
+        nn.init.xavier_uniform_(self.w_hat)
+        nn.init.xavier_uniform_(self.m_hat)
+        nn.init.constant_(self.g, 0.0)
+
+    def forward(self, x):
+        W = torch.tanh(self.w_hat) * torch.sigmoid(self.m_hat)
+        a = x @ W
+        m = torch.exp(torch.clamp((torch.log(torch.clamp(torch.abs(x), min=1e-7)) @ W), max=20.0))
+
+        # Sign tracking
+        W_flat = torch.abs(W.flatten())
+        x_tiled = x.repeat(1, W.shape[1])
+        x_reshaped = x_tiled.view(-1, W.shape[0] * W.shape[1])
+        sgn = torch.sign(x_reshaped) * W_flat + (1 - W_flat)
+        sgn = sgn.view(-1, W.shape[1], W.shape[0])
+        ms = torch.prod(sgn, dim=2)
+
+        g_val = torch.sigmoid(self.g)
+        out = g_val * a + (1 - g_val) * m * torch.clamp(ms, -1, 1)
+        return out
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(in_features={self.w_hat.shape[1]}, out_features={self.w_hat.shape[0]})"
+
+class NALUi2(nn.Module):
+    def __init__(self, input_dim, output_dim, dtype: torch.dtype):
+        super().__init__()
+        self.w_hat1 = nn.Parameter(torch.empty(input_dim, output_dim, dtype=dtype))
+        self.m_hat1 = nn.Parameter(torch.empty(input_dim, output_dim, dtype=dtype))
+        self.w_hat2 = nn.Parameter(torch.empty(input_dim, output_dim, dtype=dtype))
+        self.m_hat2 = nn.Parameter(torch.empty(input_dim, output_dim, dtype=dtype))
+        self.g = nn.Parameter(torch.empty(output_dim, dtype=dtype))
+
+        nn.init.xavier_uniform_(self.w_hat1)
+        nn.init.xavier_uniform_(self.m_hat1)
+        nn.init.xavier_uniform_(self.w_hat2)
+        nn.init.xavier_uniform_(self.m_hat2)
+        nn.init.constant_(self.g, 0.0)
+
+    def forward(self, x):
+        W1 = torch.tanh(self.w_hat1) * torch.sigmoid(self.m_hat1)
+        W2 = torch.tanh(self.w_hat2) * torch.sigmoid(self.m_hat2)
+        a = x @ W1
+        m = torch.exp(torch.clamp((torch.log(torch.clamp(torch.abs(x), min=1e-7)) @ W2), max=20.0))
+
+        # Sign tracking
+        W2_flat = torch.abs(W2.flatten())
+        x_tiled = x.repeat(1, W1.shape[1])
+        x_reshaped = x_tiled.view(-1, W1.shape[0] * W1.shape[1])
+        sgn = torch.sign(x_reshaped) * W2_flat + (1 - W2_flat)
+        sgn = sgn.view(-1, W1.shape[1], W1.shape[0])
+        ms = torch.prod(sgn, dim=2)
+
+        g_val = torch.sigmoid(self.g)
+        out = g_val * a + (1 - g_val) * m * torch.clamp(ms, -1, 1)
+        return out
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(in_features={self.w_hat1.shape[1]}, out_features={self.w_hat1.shape[0]})"
+
+class MULT(nn.Module):
+    def __init__(self, input_dim, output_dim, dtype: torch.dtype):
+        super().__init__()
+        self.w_hat = nn.Parameter(torch.empty(input_dim, output_dim, dtype=dtype))
+        self.m_hat = nn.Parameter(torch.empty(input_dim, output_dim, dtype=dtype))
+        self.g = nn.Parameter(torch.empty(output_dim, dtype=dtype))
+
+        nn.init.xavier_uniform_(self.w_hat)
+        nn.init.xavier_uniform_(self.m_hat)
+
+    def forward(self, x):
+        W = torch.tanh(self.w_hat) * torch.sigmoid(self.m_hat)
+        m = torch.exp(torch.clamp((torch.log(torch.clamp(torch.abs(x), min=1e-7)) @ W), max=20.0))
+
+        # Sign tracking
+        x_tiled = x.repeat(1, W.shape[1])
+        x_reshaped = x_tiled.view(-1, W.shape[0] * W.shape[1])
+        W_flat = torch.abs(W.flatten())
+        sgn = torch.sign(x_reshaped) * W_flat + (1 - W_flat)
+        sgn = sgn.view(-1, W.shape[1], W.shape[0])
+        ms = torch.prod(sgn, dim=2)
+
+        out = m * torch.clamp(ms, -1, 1)
+        return out
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(in_features={self.w_hat.shape[1]}, out_features={self.w_hat.shape[0]})"
+
 class NALU(nn.Module):
     """
     Neural Arithmetic Logic Units.
@@ -130,15 +225,22 @@ class MLP(nn.Module):
         fan_in = input_dim
         last_layer = 'linear'
 
+        @torch.jit.ignore
         def add_layer(layer_type, layer_dim):
             if layer_type == 'linear':
                 layers.append(nn.Linear(fan_in, layer_dim, dtype=torch.float64, bias=config.bias))
             elif layer_type == 'NALU':
                 layers.append(NALU(fan_in, layer_dim, dtype=torch.float64))
+            elif layer_type == 'NALUi1':
+                layers.append(NALUi1(fan_in, layer_dim, dtype=torch.float64))
+            elif layer_type == 'NALUi2':
+                layers.append(NALUi1(fan_in, layer_dim, dtype=torch.float64))
+            elif layer_type == 'MULT':
+                layers.append(MULT(fan_in, layer_dim, dtype=torch.float64))
             else:
                 raise ValueError(f'[BUG] layer_type {layer_type} not implemented.')
 
-        for (i, (layer_type, layer_dim)) in enumerate(parse_hidden_layers(config.hidden_layers)):
+        for (i, (layer_type, layer_dim, layer_activation)) in enumerate(parse_hidden_layers(config.hidden_layers)):
             if layer_dim == 0:
                 last_layer = layer_type
                 break
@@ -148,8 +250,12 @@ class MLP(nn.Module):
             if config.batchnorm:
                 layers.append(nn.BatchNorm1d(layer_dim, dtype=torch.float64))
 
-            layers.append(activation_function(config.activation))
-
+            if not layer_activation and not layer_activation == '':
+                layers.append(activation_function(config.activation))
+            elif layer_activation == 'I':
+                pass # No activation
+            else:
+                raise ValueError(f"[BUG] layer_activation {layer_activation} not implemented.")
             if i < len(config.dropout):
                 layers.append(nn.Dropout(config.dropout[i]))
 
