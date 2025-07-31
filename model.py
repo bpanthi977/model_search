@@ -154,12 +154,11 @@ class NALUi2(nn.Module):
     def __repr__(self):
         return f"{self.__class__.__name__}(in_features={self.w_hat1.shape[1]}, out_features={self.w_hat1.shape[0]})"
 
-class MULT(nn.Module):
+class MULT0(nn.Module):
     def __init__(self, input_dim, output_dim, dtype: torch.dtype):
         super().__init__()
         self.w_hat = nn.Parameter(torch.empty(input_dim, output_dim, dtype=dtype))
         self.m_hat = nn.Parameter(torch.empty(input_dim, output_dim, dtype=dtype))
-        self.g = nn.Parameter(torch.empty(output_dim, dtype=dtype))
 
         nn.init.xavier_uniform_(self.w_hat)
         nn.init.xavier_uniform_(self.m_hat)
@@ -168,16 +167,7 @@ class MULT(nn.Module):
         W = torch.tanh(self.w_hat) * torch.sigmoid(self.m_hat)
         m = torch.exp(torch.clamp((torch.log(torch.clamp(torch.abs(x), min=1e-7)) @ W), max=20.0))
 
-        # Sign tracking
-        x_tiled = x.repeat(1, W.shape[1])
-        x_reshaped = x_tiled.view(-1, W.shape[0] * W.shape[1])
-        W_flat = torch.abs(W.flatten())
-        sgn = torch.sign(x_reshaped) * W_flat + (1 - W_flat)
-        sgn = sgn.view(-1, W.shape[1], W.shape[0])
-        ms = torch.prod(sgn, dim=2)
-
-        out = m * torch.clamp(ms, -1, 1)
-        return out
+        return m
 
     def __repr__(self):
         return f"{self.__class__.__name__}(in_features={self.w_hat.shape[1]}, out_features={self.w_hat.shape[0]})"
@@ -235,8 +225,8 @@ class MLP(nn.Module):
                 layers.append(NALUi1(fan_in, layer_dim, dtype=torch.float64))
             elif layer_type == 'NALUi2':
                 layers.append(NALUi1(fan_in, layer_dim, dtype=torch.float64))
-            elif layer_type == 'MULT':
-                layers.append(MULT(fan_in, layer_dim, dtype=torch.float64))
+            elif layer_type == 'MULT0':
+                layers.append(MULT0(fan_in, layer_dim, dtype=torch.float64))
             else:
                 raise ValueError(f'[BUG] layer_type {layer_type} not implemented.')
 
