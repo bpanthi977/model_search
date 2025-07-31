@@ -304,8 +304,11 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
 
     # Save model
     model = env.model
-    model_script = torch.jit.script(model.to(torch.device('cpu')).double())
-    model_script.save(run_dir.joinpath("model.pt"))
+    try:
+        model_script = torch.jit.script(model.to(torch.device('cpu')).double())
+        model_script.save(run_dir.joinpath("model.pt"))
+    except Exception as e:
+        print(e)
     save_checkpoint(env, run_dir.joinpath('checkpoint.pth'))
 
     with open(run_dir.joinpath("info.csv"), "w", newline='') as f:
