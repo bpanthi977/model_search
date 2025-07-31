@@ -72,7 +72,7 @@ def tune(config: Config):
     dataset = load_dataset(config.dataset)
     def objective(trial: optuna.Trial) -> float:
         train_config = create_train_config(trial, config)
-        new_config = dataclasses.replace(config, train=train_config)
+        new_config = dataclasses.replace(config, train=train_config, tuning=None)
 
         def pruning_callback(info):
             epoch = info['epoch']

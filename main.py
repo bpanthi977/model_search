@@ -4,6 +4,7 @@ import os
 import sys
 import shutil
 from pathlib import Path
+import copy
 from h5py import Dataset
 import pyrallis
 from datetime import datetime
@@ -29,6 +30,9 @@ def redirect_output(path: Path):
     os.dup2(log_file.fileno(), sys.stderr.fileno())
 
 def train(config: Config, dataset: Optional[Dataset], redirect_io: bool, checkpoint_path: Optional[Path]):
+    config = copy.deepcopy(config)
+    config.tuning = None
+
     ## Generate a random suffix so that train started at same time don't clash
     seed = int.from_bytes(os.urandom(8), byteorder='big')
     rng = random.Random(seed)
