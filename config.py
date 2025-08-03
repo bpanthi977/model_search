@@ -165,23 +165,28 @@ class TuningConfig:
             return TuningConfig(**kwargs)
 
     def __post_init__(self):
-        if self.lr_range:
-            lr_range = self.lr_range
-            assert len(lr_range) == 2, "lr_range must be two floats (low, high)"
-            assert self.lr_range[0] <= self.lr_range[1], f"lr_range must be (low, high) but {lr_range[0]} > {lr_range[1]}"
+        try:
+            if self.lr_range:
+                lr_range = self.lr_range
+                assert len(lr_range) == 2, "lr_range must be two floats (low, high)"
+                assert self.lr_range[0] <= self.lr_range[1], f"lr_range must be (low, high) but {lr_range[0]} > {lr_range[1]}"
 
-        hl_range = self.hidden_layers_size_range
-        if hl_range:
-            assert len(hl_range) == 2, "hidden_layers_size_range must be two floats (low, high)"
-            assert hl_range[0] <= hl_range[1], f"hidden_layers_size_range must be (low, high) but {hl_range[0]} > {hl_range[1]}"
+            hl_range = self.hidden_layers_size_range
+            if hl_range:
+                assert len(hl_range) == 2, "hidden_layers_size_range must be two floats (low, high)"
+                assert hl_range[0] <= hl_range[1], f"hidden_layers_size_range must be (low, high) but {hl_range[0]} > {hl_range[1]}"
 
-        wd_range = self.weight_decay_range
-        if wd_range:
-            assert len(wd_range) == 2, "weight_decay_range must be two floats (low, high)"
-            assert wd_range[0] <= wd_range[1], f"weight_decay_range must be (low, high) but {wd_range[0]} > {wd_range[1]}"
+            wd_range = self.weight_decay_range
+            if wd_range:
+                assert len(wd_range) == 2, "weight_decay_range must be two floats (low, high)"
+                assert wd_range[0] <= wd_range[1], f"weight_decay_range must be (low, high) but {wd_range[0]} > {wd_range[1]}"
 
-        if self.optimizer:
-            assert (self.optimizer in ['adamw', 'adagrad', 'rmsprop']), "optimizer must be one of ['adamw', 'adagrad', 'rmsprop']"
+            if self.optimizer:
+                for optimizer in self.optimizer:
+                    assert (optimizer in ['adamw', 'adagrad', 'rmsprop']), "optimizer must be one of ['adamw', 'adagrad', 'rmsprop']"
+        except AssertionError as e:
+            print(f"Error: {e}")
+            raise e
 
 @dataclass
 class Config:
