@@ -33,7 +33,16 @@ def create_train_config(study: optuna.Trial, config: Config) -> TrainConfig:
 
         train.model.hidden_layers = hidden_layers
 
-    train.optim.lr = str(study.suggest_float("lr", config.tuning.lr_range[0], config.tuning.lr_range[1], log=True))
+    if config.tuning.lr_range:
+        train.optim.lr = str(study.suggest_float("lr", config.tuning.lr_range[0], config.tuning.lr_range[1], log=True))
+
+    if config.tuning.optimizer:
+        train.optim.optimizer = str(study.suggest_categorical('optimizer', config.tuning.optimizer))
+
+    if config.tuning.weight_decay_range:
+        wd = config.tuning.weight_decay_range
+        train.optim.weight_decay = study.suggest_float('weight_decay', wd[0], wd[1], log=True)
+
     train.batch_size = study.suggest_categorical("batch_size", config.tuning.batch_size_values)
     if config.tuning.tune_normalize:
         train.model.normalize = study.suggest_categorical('normalize', [True, False])

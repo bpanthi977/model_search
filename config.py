@@ -13,8 +13,6 @@ from pathlib import Path
 import re
 import traceback
 
-from torch.nn.modules import linear
-
 @dataclass
 class DatasetConfig:
     """Specify Dataset file and h5 group name."""
@@ -151,7 +149,9 @@ class TuningConfig:
     hidden_layers_size_range: List[int]
     n_hidden_layers: List[int]
     hidden_layer_types: List[str]
-    lr_range: List[float]
+    lr_range: Optional[List[float]]
+    optimizer: Optional[List[str]]
+    weight_decay_range: Optional[List[float]]
     batch_size_values: List[int]
     tune_normalize: bool
     enable_prune: bool
@@ -165,12 +165,23 @@ class TuningConfig:
             return TuningConfig(**kwargs)
 
     def __post_init__(self):
-        lr_range = self.lr_range
-        assert len(lr_range) == 2, "lr_range must be two floats (low, high)"
-        assert self.lr_range[0] <= self.lr_range[1], f"lr_range must be (low, high) but {lr_range[0]} > {lr_range[1]}"
+        if self.lr_range:
+            lr_range = self.lr_range
+            assert len(lr_range) == 2, "lr_range must be two floats (low, high)"
+            assert self.lr_range[0] <= self.lr_range[1], f"lr_range must be (low, high) but {lr_range[0]} > {lr_range[1]}"
+
         hl_range = self.hidden_layers_size_range
-        assert len(hl_range) == 2, "hidden_layers_size_range must be two floats (low, high)"
-        assert hl_range[0] <= hl_range[1], f"hidden_layers_size_range must be (low, high) but {hl_range[0]} > {hl_range[1]}"
+        if hl_range:
+            assert len(hl_range) == 2, "hidden_layers_size_range must be two floats (low, high)"
+            assert hl_range[0] <= hl_range[1], f"hidden_layers_size_range must be (low, high) but {hl_range[0]} > {hl_range[1]}"
+
+        wd_range = self.weight_decay_range
+        if wd_range:
+            assert len(wd_range) == 2, "weight_decay_range must be two floats (low, high)"
+            assert wd_range[0] <= wd_range[1], f"weight_decay_range must be (low, high) but {wd_range[0]} > {wd_range[1]}"
+
+        if self.optimizer:
+            assert (self.optimizer in ['adamw', 'adagrad', 'rmsprop']), "optimizer must be one of ['adamw', 'adagrad', 'rmsprop']"
 
 @dataclass
 class Config:
