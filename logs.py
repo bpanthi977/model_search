@@ -88,7 +88,7 @@ def read_study(study_dir: Path):
     return trials
 
 def create_df(trials):
-    df_loss = pd.DataFrame(columns=["name", "epoch", "train_loss", "val_loss"])
+    df_loss = pd.DataFrame(columns=["name", "epoch", "train_loss", "val_loss", "val_max_l1"])
     df_config = pd.DataFrame(columns=["name", "loss", "batch_size", "sample",
                                       "init", "init_param", "activation", "hidden_layers", "dropout", "bias", "normalizeX", "normalizeY", "batchnorm",
                                       "optimizer", "lr", "weight_decay",
@@ -97,7 +97,7 @@ def create_df(trials):
     for t in trials:
         for (tl, vl) in zip(t.train_loss, t.val_loss):
             epoch = tl[0]
-            df_loss.loc[len(df_loss)] = [t.name, epoch, tl[1], vl[1]]
+            df_loss.loc[len(df_loss)] = [t.name, epoch, tl[1], vl[1], vl[3]]
 
         train = t.config.train
         model = t.config.train.model
