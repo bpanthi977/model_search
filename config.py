@@ -146,15 +146,15 @@ class TuningConfig:
     """Configuration for hyperparameter tuning."""
 
     trials: int
-    hidden_layers_size_range: List[int]
-    n_hidden_layers: List[int]
-    hidden_layer_types: List[str]
-    lr_range: Optional[List[float]]
-    optimizer: Optional[List[str]]
-    weight_decay_range: Optional[List[float]]
-    batch_size_values: List[int]
     tune_normalize: bool
     enable_prune: bool
+    batch_size_values: List[int]
+    hidden_layers_size_range: Optional[List[int]] = None
+    n_hidden_layers: Optional[List[int]] = None
+    hidden_layer_types: Optional[List[str]] = None
+    lr_range: Optional[List[float]] = None
+    optimizer: Optional[List[str]] = None
+    weight_decay_range: Optional[List[float]] = None
     trial_id: int = 0
 
     def init_or_none(**kwargs):

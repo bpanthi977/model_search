@@ -19,6 +19,10 @@ def create_train_config(study: optuna.Trial, config: Config) -> TrainConfig:
     train = copy.deepcopy(config.train)
 
     if len(config.train.model.hidden_layers) == 0:
+        assert(config.tuning.n_hidden_layers), "n_hidden_layers must be specified."
+        assert(config.tuning.hidden_layer_types), "hidden_layer_types must be specified."
+        assert(config.tuning.hidden_layers_size_range), "hidden_layers_size_range must be specified."
+
         n_hidden_layers = study.suggest_categorical("hidden_layers", config.tuning.n_hidden_layers)
         hidden_layers = []
         if n_hidden_layers == 0:
