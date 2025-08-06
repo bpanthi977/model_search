@@ -152,7 +152,7 @@ class NALUi2(nn.Module):
         return out
 
     def __repr__(self):
-        return f"{self.__class__.__name__}(in_features={self.w_hat1.shape[1]}, out_features={self.w_hat1.shape[0]})"
+        return f"{self.__class__.__name__}(in_features={self.w_hat1.shape[0]}, out_features={self.w_hat1.shape[1]})"
 
 class MULT0(nn.Module):
     def __init__(self, input_dim, output_dim, dtype: torch.dtype):
@@ -170,7 +170,7 @@ class MULT0(nn.Module):
         return m
 
     def __repr__(self):
-        return f"{self.__class__.__name__}(in_features={self.w_hat.shape[1]}, out_features={self.w_hat.shape[0]})"
+        return f"{self.__class__.__name__}(in_features={self.w_hat.shape[0]}, out_features={self.w_hat.shape[1]})"
 
 class NALU(nn.Module):
     """
@@ -201,7 +201,7 @@ class NALU(nn.Module):
         return g * a + (1 - g) * m
 
     def __repr__(self):
-        return f"{self.__class__.__name__}(in_features={self.W_hat.shape[1]}, out_features={self.W_hat.shape[0]})"
+        return f"{self.__class__.__name__}(in_features={self.W_hat.shape[0]}, out_features={self.W_hat.shape[1]})"
 
 class MLP(nn.Module):
     def __init__(self, device, input_dim, output_dim, config: ModelConfig, normalize: Normalization):
