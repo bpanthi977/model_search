@@ -110,6 +110,7 @@ class OptimizerConfig:
 
     optimizer: str = field(metadata={"help": "Optimizer to use. [rmsprop, adagrad, adamw]"})
     lr: str = field(metadata={"help": "Learning rate of Optimizer. Can be a string."})
+    nalu_lr: Optional[float] = field(metadata={"help": "Learning rate for NALU layers."})
     weight_decay: float = field(metadata={"help": "Optimizer weight decay"})
 
     def __post_init__(self):

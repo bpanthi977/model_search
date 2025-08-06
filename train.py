@@ -15,7 +15,7 @@ import pyrallis
 
 from config import Config, TrainConfig, OptimizerConfig, parse_lr_scheduler
 from dataset import Dataset, load_dataset
-from model import MLP, create_model
+from model import MLP, create_model, MULT0
 from visualize import visualize_weights, visualize_loss
 from log_gpu_utilization import log_gpu_utilization
 
@@ -58,15 +58,37 @@ def get_loss_fn(loss: str):
 
     assert False, f"Impossible value of loss function {loss}. Fix validate in TrainConfig."
 
+def collect_params(model: nn.Module):
+    usual_params = []
+    nalu_params = []
+
+    for module in model.modules():
+        if module is model:
+            pass
+        elif isinstance(module, MULT0):
+            nalu_params.extend(module.parameters(recurse=False))
+        else:
+            usual_params.extend(module.parameters(recurse=False))
+
+    return usual_params, nalu_params
+
 def get_optimizer(config: OptimizerConfig, model: nn.Module):
     """Create optimizer for given config."""
     lr: float = parse_lr_scheduler(config.lr)[1]
+    nalu_lr = config.nalu_lr or lr
+    usual_params, nalu_params = collect_params(model)
+    param_groups = [
+            {'params': usual_params}
+    ]
+    if len(nalu_params) > 0:
+        param_groups.append({'params': nalu_params, 'lr': nalu_lr, 'weight_decay': 0.0})
+
     if config.optimizer == 'adamw':
-        return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=config.weight_decay)
+        return torch.optim.AdamW(param_groups, lr=lr, weight_decay=config.weight_decay)
     elif config.optimizer == 'rmsprop':
-        return torch.optim.RMSprop(model.parameters(), lr=lr, weight_decay=config.weight_decay)
+        return torch.optim.RMSprop(param_groups, lr=lr, weight_decay=config.weight_decay)
     elif config.optimizer == 'adagrad':
-        return torch.optim.Adagrad(model.parameters(), lr=lr, weight_decay=config.weight_decay)
+        return torch.optim.Adagrad(param_groups, lr=lr, weight_decay=config.weight_decay)
     else:
         assert False, f"Impossible value of optimizer {config.optimizer}. Fix validate in OptimizerConfig."
 
@@ -199,7 +221,7 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
             f"Train {config.loss}": f"{mean_train_loss:.4f}",
             f"Val {config.loss}": f"{mean_val_loss:.4f}",
             f"ΔY": train_y.agg(),
-            f"lr": optimizer.param_groups[0]['lr']
+            f"lr": [pg['lr'] for pg in optimizer.param_groups]
         })
 
         max_l1 = max(abs(val_l1.max), abs(val_l1.min)) or float('+inf')
@@ -214,7 +236,7 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
                 "max_l1": max_l1,
                 "train_time": train_time,
                 "val_time": val_time,
-                "lr": optimizer.param_groups[0]['lr']
+                "all_lr": [pg['lr'] for pg in optimizer.param_groups]
             })
 
         lr_scheduler.step()
@@ -274,7 +296,7 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
                     save_checkpoint(env, run_dir.joinpath("checkpoint_best.pth"))
             else:
                 raise ValueError(f"[BUG] invalid evaluation metric {config.train.evaluation_metric}")
-            w_train.writerow([epoch+1, info["train_loss"], info["train_time"], info["lr"]])
+            w_train.writerow([epoch+1, info["train_loss"], info["train_time"], info["all_lr"]])
             w_val.writerow([epoch+1, val_loss, info["val_time"], max_l1])
             f_train.flush()
             f_val.flush()

@@ -43,7 +43,7 @@ def read_run(trial_dir: Path):
         def parse_row(row):
             lr = row[3] if len(row) >= 4 else config.train.optim.lr
             # epoch, loss, time, lr
-            return [int(row[0]), float(row[1]), float(row[2]), float(lr)]
+            return [int(row[0]), float(row[1]), float(row[2]), lr]
         train_loss = [parse_row(row) for row in list(csv.reader(f))]
 
     with open(trial_dir.joinpath("val_loss.csv"), "r") as f:
