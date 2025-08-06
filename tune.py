@@ -69,7 +69,17 @@ def prev_trails_count(study: optuna.Study):
     good = len(study.trials) - failed
     return good
 
-def tune(config: Config):
+def read_env():
+    config = {}
+    with open(".env", "r") as f:
+        for line in f.readlines():
+            (key, val) = line.split("=")
+            key = key.strip(" \n")
+            val = val.strip(" \n")
+            config[key] = val
+    return config
+
+def tune(config: Config, postgres: bool = False):
     """Run hyperparameter tuning based on given Config."""
     assert config.tuning, "Tuning config not provided."
 
@@ -77,8 +87,18 @@ def tune(config: Config):
     study_name = config.study_name
     config.logs_dir.mkdir(parents=True, exist_ok=True)
 
-    sqlite_file = config.logs_dir.joinpath("optuna.db")
-    storage = f"sqlite:///{sqlite_file}"
+    if postgres:
+        env = read_env()
+        user = env['PG_USER']
+        password = env['PG_PASSWORD']
+        host = env['PG_HOST']
+        port = env['PG_PORT']
+        db  = env["PG_DB"]
+        storage = f"postgresql://{user}:{password}@{host}:{port}/{db}"
+    else:
+        sqlite_file = config.logs_dir.joinpath("optuna.db")
+        storage = f"sqlite:///{sqlite_file}"
+
     study = optuna.create_study(direction="minimize", study_name=study_name, sampler=optuna.samplers.TPESampler(), storage=storage, load_if_exists=True)
 
     # Run the study

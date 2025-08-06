@@ -75,6 +75,7 @@ if __name__ == "__main__":
     parser.add_argument('-l', '--log-stdout', action='store_true')
     parser.add_argument('--seed')
     parser.add_argument('--tune', action='store_true')
+    parser.add_argument('--postgres', action='store_true')
 
     (args, args_rest) = parser.parse_known_args()
     if args.help:
@@ -120,6 +121,6 @@ if __name__ == "__main__":
     elif not args.tune: # just train
         train(config, None, args.log_stdout, checkpoint_path)
     else:
-        tune(config)
+        tune(config, args.postgres)
 
     exit(0)
