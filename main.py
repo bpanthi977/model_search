@@ -17,7 +17,7 @@ import numpy as np
 from train import train_log
 from tune import tune
 from config import Config
-from validate_model import validate
+from validate_model import create_model_from_checkpoint, validate
 
 def redirect_output(path: Path):
     log_file = open(path, 'a')
@@ -72,6 +72,7 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--config')
     parser.add_argument('--checkpoint')
     parser.add_argument('--validate', action='store_true')
+    parser.add_argument('--create-model', action='store_true')
     parser.add_argument('-l', '--log-stdout', action='store_true')
     parser.add_argument('--seed')
     parser.add_argument('--tune', action='store_true')
@@ -85,6 +86,9 @@ if __name__ == "__main__":
         exit(0)
 
     set_all_seeds(int(args.seed or '42'))
+    if not (args.config or args.checkpoint):
+        print("Specify either --config for --checkpoint.")
+        exit(1)
 
     checkpoint_path = None
     if args.checkpoint:
@@ -118,6 +122,11 @@ if __name__ == "__main__":
             exit(1)
 
         validate(config, checkpoint_path)
+    elif args.create_model:
+        if not checkpoint_path:
+            print(f"Specify --checkpoint for --create-model.")
+            exit(1)
+        create_model_from_checkpoint(config, checkpoint_path)
     elif not args.tune: # just train
         train(config, None, args.log_stdout, checkpoint_path)
     else:
