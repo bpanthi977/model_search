@@ -172,6 +172,22 @@ class MULT0(nn.Module):
     def __repr__(self):
         return f"{self.__class__.__name__}(in_features={self.w_hat.shape[0]}, out_features={self.w_hat.shape[1]})"
 
+class MULT1(nn.Module):
+    def __init__(self, input_dim, output_dim, dtype: torch.dtype):
+        super().__init__()
+        self.w_hat = nn.Parameter(torch.empty(input_dim, output_dim, dtype=dtype))
+
+        nn.init.xavier_uniform_(self.w_hat)
+
+    def forward(self, x):
+        W = torch.sigmoid(self.w_hat)
+        m = torch.exp(torch.clamp((torch.log(torch.clamp(torch.abs(x), min=1e-7)) @ W), max=20.0))
+
+        return m
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(in_features={self.w_hat.shape[0]}, out_features={self.w_hat.shape[1]})"
+
 class NALU(nn.Module):
     """
     Neural Arithmetic Logic Units.

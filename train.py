@@ -15,7 +15,7 @@ import pyrallis
 
 from config import Config, TrainConfig, OptimizerConfig, parse_lr_scheduler
 from dataset import Dataset, load_dataset
-from model import MLP, create_model, MULT0
+from model import MLP, create_model, MULT0, MULT1
 from visualize import visualize_weights, visualize_loss
 from log_gpu_utilization import log_gpu_utilization
 
@@ -65,7 +65,7 @@ def collect_params(model: nn.Module):
     for module in model.modules():
         if module is model:
             pass
-        elif isinstance(module, MULT0):
+        elif isinstance(module, MULT0) or isinstance(module, MULT1):
             nalu_params.extend(module.parameters(recurse=False))
         else:
             usual_params.extend(module.parameters(recurse=False))
