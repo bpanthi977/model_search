@@ -142,6 +142,10 @@ class TrainConfig:
         check_member('loss', self.loss, ['mse', 'mae', 'smoothl1'])
         check_member('evaluation_metric', self.evaluation_metric, ['val_loss', 'max_l1'])
 
+def assert_range(r, name: str):
+    assert len(r) == 2, f"{name} must be two floats (low, high)"
+    assert r[0] <= r[1], f"{name} must be (low, high) but {r} > {r}"
+
 @dataclass
 class TuningConfig:
     """Configuration for hyperparameter tuning."""
@@ -154,6 +158,7 @@ class TuningConfig:
     n_hidden_layers: Optional[List[int]] = None
     hidden_layer_types: Optional[List[str]] = None
     lr_range: Optional[List[float]] = None
+    nalu_lr_range: Optional[List[float]] = None
     optimizer: Optional[List[str]] = None
     weight_decay_range: Optional[List[float]] = None
     trial_id: int = 0
@@ -168,19 +173,16 @@ class TuningConfig:
     def __post_init__(self):
         try:
             if self.lr_range:
-                lr_range = self.lr_range
-                assert len(lr_range) == 2, "lr_range must be two floats (low, high)"
-                assert self.lr_range[0] <= self.lr_range[1], f"lr_range must be (low, high) but {lr_range[0]} > {lr_range[1]}"
+                assert_range(self.lr_range, "lr_range")
 
-            hl_range = self.hidden_layers_size_range
-            if hl_range:
-                assert len(hl_range) == 2, "hidden_layers_size_range must be two floats (low, high)"
-                assert hl_range[0] <= hl_range[1], f"hidden_layers_size_range must be (low, high) but {hl_range[0]} > {hl_range[1]}"
+            if self.nalu_lr_range:
+                assert_range(self.nalu_lr_range, "nalu_lr_range")
 
-            wd_range = self.weight_decay_range
-            if wd_range:
-                assert len(wd_range) == 2, "weight_decay_range must be two floats (low, high)"
-                assert wd_range[0] <= wd_range[1], f"weight_decay_range must be (low, high) but {wd_range[0]} > {wd_range[1]}"
+            if self.hidden_layers_size_range:
+                assert_range(self.hidden_layers_size_range, "hidden_layers_size_range")
+
+            if self.weight_decay_range:
+                assert_range(self.weight_decay_range, "weight_decay_range")
 
             if self.optimizer:
                 for optimizer in self.optimizer:

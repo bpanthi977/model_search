@@ -6,6 +6,8 @@ from pathlib import Path
 from datetime import datetime
 import copy
 
+import pyrallis
+
 from dataset import load_dataset
 from train import train_log
 from config import Config, TrainConfig
@@ -39,6 +41,9 @@ def create_train_config(study: optuna.Trial, config: Config) -> TrainConfig:
 
     if config.tuning.lr_range:
         train.optim.lr = str(study.suggest_float("lr", config.tuning.lr_range[0], config.tuning.lr_range[1], log=True))
+
+    if config.tuning.nalu_lr_range:
+        train.optim.nalu_lr = study.suggest_float("nalu_lr", config.tuning.nalu_lr_range[0], config.tuning.nalu_lr_range[1], log=True)
 
     if config.tuning.optimizer:
         train.optim.optimizer = str(study.suggest_categorical('optimizer', config.tuning.optimizer))
@@ -106,6 +111,7 @@ def tune(config: Config, postgres: bool = False):
     def objective(trial: optuna.Trial) -> float:
         train_config = create_train_config(trial, config)
         new_config = dataclasses.replace(config, train=train_config, tuning=None)
+        trial.set_user_attr("config", pyrallis.dump(config))
 
         def pruning_callback(info):
             epoch = info['epoch']
