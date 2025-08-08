@@ -332,6 +332,7 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
     except Exception as e:
         print(e)
     save_checkpoint(env, run_dir.joinpath('checkpoint.pth'))
+    parameter_count = sum(param.numel() for param in model.parameters())
 
     with open(run_dir.joinpath("info.csv"), "w", newline='') as f:
         csv.writer(f).writerows(
@@ -344,7 +345,8 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
              ["best_max_l1", env.best_max_l1],
              ["loss", config.train.loss],
              ["training_size", dataset.trainX.shape[0]],
-             ["validation_size", dataset.validateX.shape[0]]]
+             ["validation_size", dataset.validateX.shape[0]],
+             ["parameter_count", parameter_count]]
         )
 
     # Create visualizations
