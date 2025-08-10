@@ -87,7 +87,7 @@ if __name__ == "__main__":
 
     set_all_seeds(int(args.seed or '42'))
     if not (args.config or args.checkpoint):
-        print("Specify either --config for --checkpoint.")
+        print("Specify either --config or --checkpoint.")
         exit(1)
 
     checkpoint_path = None
