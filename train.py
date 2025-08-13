@@ -16,7 +16,7 @@ import pyrallis
 from config import Config, TrainConfig, OptimizerConfig, parse_lr_scheduler
 from dataset import Dataset, load_dataset
 from model import MLP, create_model, MULT0, MULT1
-from visualize import visualize_weights, visualize_loss
+from visualize import visualize_weights, visualize_loss, visualize_model
 from log_gpu_utilization import log_gpu_utilization
 
 class MinMax():
@@ -354,7 +354,7 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
     fig_dir.mkdir(parents=True, exist_ok=True)
     visualize_weights(model, fig_dir)
     visualize_loss(run_dir, fig_dir)
-
+    visualize_model(run_dir, model, dataset)
     # Print run_dir
     print(run_dir)
 

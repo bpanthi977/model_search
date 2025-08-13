@@ -3,9 +3,14 @@ import argparse
 import csv
 
 import torch
+import torch.nn as nn
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
+from torchview import draw_graph
+import pydot
+
+from dataset import Dataset
 
 
 def visualize_weights(model: torch.nn.Module, path: Path):
@@ -102,3 +107,10 @@ if __name__ == "__main__":
         visualize_weights(model, fig_dir)
 
     exit(0)
+
+def visualize_model(log_dir: Path, model: nn.Module, dataset: Dataset):
+    graph = draw_graph(model, dataset.trainX[0].unsqueeze(0), expand_nested=True)
+    #graph.visual_graph.render(log_dir.joinpath("figs/model_shape.png"), format="png")
+    dot_str = graph.visual_graph.source
+    with open(log_dir.joinpath("figs/model_shape.dot"), "w") as f:
+        f.write(dot_str)
