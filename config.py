@@ -29,7 +29,7 @@ def check_member(name, val, lst):
 def parse_hidden_layers(hidden_layers: List[Union[str, int]]):
     result = []
     # MULT is deprecated after commit 9120d0a
-    layer_types = {'linear', 'NALU', 'NALUi1', 'NALUi2', 'MULT0', 'MULT'}
+    layer_types = {'split', 'join', 'linear', 'NALU', 'NALUi1', 'NALUi2', 'MULT0', 'MULT'}
     layer_act = {'I'}
     regex_match_types = '|'.join(layer_types)
     regex_match_act = "|".join(layer_act)
@@ -39,10 +39,14 @@ def parse_hidden_layers(hidden_layers: List[Union[str, int]]):
         elif isinstance(hl, str):
             if match := re.match(rf'({regex_match_types})\(([0-9]+)\)(?:-({regex_match_act}))?', hl):
                 hl_type, size, act = match.groups()
+                if hl_type == 'split' or hl_type == 'join':
+                    act = 'I'
                 size = int(size)
                 assert size != 0
                 result.append((hl_type, size, act))
             elif hl in layer_types:
+                if hl == 'split' or hl == 'join':
+                    raise ValueError(f"{hl} layer needs number of groups as argument.")
                 if i + 1 != len(hidden_layers):
                     raise ValueError(f"Invalid hidden_layer {hl}: type without size is only allowed as last layer")
                 result.append((hl, 0, None))

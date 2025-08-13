@@ -219,6 +219,30 @@ class NALU(nn.Module):
     def __repr__(self):
         return f"{self.__class__.__name__}(in_features={self.W_hat.shape[0]}, out_features={self.W_hat.shape[1]})"
 
+class Split(nn.Module):
+    def __init__(self, group_size: int):
+        super().__init__()
+        self.group_size = group_size
+
+    def forward(self, x: torch.Tensor):
+        batch, features = x.shape
+        if features % self.group_size != 0:
+            raise ValueError(f"Invalid features size {features}. Not divisible by {self.group_size}")
+        ret = x.reshape(batch, features // self.group_size, self.group_size)
+        return ret
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(group_size={self.group_size})"
+
+class Join(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x: torch.Tensor):
+        ret = torch.flatten(x, start_dim=-2, end_dim=-1)
+        return ret
+
+
 class MLP(nn.Module):
     def __init__(self, device, input_dim, output_dim, config: ModelConfig, normalize: Normalization):
         super().__init__()
@@ -243,11 +267,17 @@ class MLP(nn.Module):
                 layers.append(NALUi1(fan_in, layer_dim, dtype=torch.float64))
             elif layer_type == 'MULT0':
                 layers.append(MULT0(fan_in, layer_dim, dtype=torch.float64))
+            elif layer_type == 'split':
+                layers.append(Split(layer_dim))
+            elif layer_type == 'join':
+                layers.append(Join())
             else:
                 raise ValueError(f'[BUG] layer_type {layer_type} not implemented.')
 
-        for (i, (layer_type, layer_dim, layer_activation)) in enumerate(parse_hidden_layers(config.hidden_layers)):
-            if layer_dim == 0:
+        hl_details = parse_hidden_layers(config.hidden_layers)
+        last_i = len(hl_details) - 1
+        for (i, (layer_type, layer_dim, layer_activation)) in enumerate(hl_details):
+            if layer_dim == last_i:
                 last_layer = layer_type
                 break
             add_layer(layer_type, layer_dim)
