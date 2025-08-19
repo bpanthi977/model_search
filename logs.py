@@ -3,6 +3,8 @@ import csv
 import pandas as pd
 from dataclasses import dataclass
 from typing import List, Tuple, Optional
+
+import argparse
 import pyrallis
 
 from config import Config, TrainConfig
@@ -34,6 +36,7 @@ class Trial:
         return f"Trial(name={self.name}\n\tconfig={self.config},\n\ttrain_loss=[..., {self.train_loss[-1]}],\n\tval_loss=[..., {self.val_loss[-1]}])"
 
 def read_run(trial_dir: Path):
+    global total_parse_time
     config_file = trial_dir.joinpath("config.yaml")
     if not config_file.exists():
         return False
@@ -88,24 +91,108 @@ def read_study(study_dir: Path):
     return trials
 
 def create_df(trials):
-    df_loss = pd.DataFrame(columns=["name", "epoch", "train_loss", "val_loss", "val_max_l1"])
-    df_config = pd.DataFrame(columns=["name", "loss", "batch_size", "sample",
-                                      "init", "init_param", "activation", "hidden_layers", "dropout", "bias", "normalizeX", "normalizeY", "batchnorm",
-                                      "optimizer", "lr", "weight_decay",
-                                      "train_time"])
-
+    loss_rows = []
+    config_rows = []
     for t in trials:
         for (tl, vl) in zip(t.train_loss, t.val_loss):
             epoch = tl[0]
-            df_loss.loc[len(df_loss)] = [t.name, epoch, tl[1], vl[1], vl[3]]
+            loss_rows.append([t.name, epoch, tl[1], vl[1], vl[3]])
 
         train = t.config.train
         model = t.config.train.model
         optim = t.config.train.optim
-        df_config.loc[len(df_config)] = [t.name, train.loss, train.batch_size, t.config.dataset.sample,
+        config_rows.append([t.name, train.loss, train.batch_size, t.config.dataset.sample,
                                          model.init, model.init_param, model.activation, model.hidden_layers, model.dropout, model.bias, model.normalizeX, model.normalizeY, model.batchnorm,
                                          optim.optimizer, optim.lr, optim.weight_decay,
-                                         t.time.total_time_min if t.time else 0]
+                                         t.time.total_time_min if t.time else 0])
 
+    df_loss = pd.DataFrame(loss_rows, columns=["name", "epoch", "train_loss", "val_loss", "val_max_l1"])
+    df_config = pd.DataFrame(config_rows, columns=["name", "loss", "batch_size", "sample",
+                                                   "init", "init_param", "activation", "hidden_layers", "dropout", "bias", "normalizeX", "normalizeY", "batchnorm",
+                                                   "optimizer", "lr", "weight_decay",
+                                                   "train_time"])
     df = df_config.merge(df_loss, how='inner', validate='one_to_many')
     return df
+
+def describe_list(hl):
+    hl_same = len(set(hl)) <= 1
+    if hl_same:
+        return str(hl[0]) + '*' + str(len(hl))
+    else:
+        return str(hl)
+
+def describe_row(row):
+    desc = ''
+    desc += describe_list(row['hidden_layers'])
+    if row['batchnorm']:
+        desc = f'|{desc}|_b'
+    if not row['bias']:
+        desc += '!b'
+    if len(row['dropout']) != 0:
+        desc += '-' + describe_list(row['dropout'])
+    if row['activation'] != 'relu':
+        desc += '-' + row['activation']
+    if row['batch_size'] != 1024:
+        desc += '-bs(' + str(row['batch_size']) + ')'
+    if row['optimizer'] != 'adagrad' or row['lr'] != '0.01' or row['weight_decay'] != 0.0:
+        opt = {'adagrad': 'ag', 'rmsprop': 'rp', 'adamw': 'am'}
+        desc += f'-{opt[row['optimizer']]}({row['lr']:.6}'
+        if row['weight_decay'] != 0.0:
+            desc += f',{row['weight_decay']}'
+        desc += ')'
+    if row['normalizeX'] or row['normalizeY']:
+        desc = f'|{desc}|_'
+        if row['normalizeX']:
+            desc += 'x'
+        if row['normalizeY']:
+            desc += 'y'
+    if row['loss'] != 'mae':
+        if row['loss'] == 'mse':
+            desc += "_l2"
+        elif row['loss'] == 'smoothl1':
+            desc += '_sl1'
+
+    return desc
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        prog="Logs"
+    )
+    parser.add_argument('--logs')
+    parser.add_argument('--sort-by')
+
+    args = parser.parse_args()
+    if not args.logs:
+        print("Specify logs directory: --logs")
+        exit(1)
+
+    logs_dir = Path(args.logs)
+    if not logs_dir.exists():
+        print(f"Logs directory {logs_dir} doesn't exists.")
+        exit(1)
+
+    study = read_study(logs_dir)
+    df_all = create_df(study)
+
+
+    final_rows = df_all.loc[df_all.groupby('name')['epoch'].idxmax()]
+    final_rows = final_rows.set_index('name')
+    best_rows = df_all.groupby('name')['val_loss'].idxmin()
+
+    final_rows['val_loss_best'] = df_all.loc[best_rows].set_index('name')['val_loss']
+    final_rows['best_epoch'] = df_all.loc[best_rows].set_index('name')['epoch']
+    final_rows['desc'] = final_rows.apply(describe_row, axis=1)
+
+    if args.sort_by == 'loss':
+        final_rows = final_rows.sort_values(by='val_loss_best')
+    else:
+        final_rows = final_rows.sort_values(by='name')
+
+    pd.set_option("display.max_rows", None)
+    pd.set_option("display.max_columns", None)
+    pd.set_option("display.max_colwidth", None)
+    pd.set_option("display.width", None)
+    pd.set_option("display.expand_frame_repr", False)
+
+    print(final_rows)
