@@ -160,7 +160,8 @@ if __name__ == "__main__":
         prog="Logs"
     )
     parser.add_argument('--logs')
-    parser.add_argument('--sort-by')
+    parser.add_argument('--sort-by', help="Options: [loss, name]. --sort-by loss sorts the results in increasing order of validation loss.")
+    parser.add_argument('--save', help="Save the summary to summary.txt file in the logs folder.", action='store_true')
 
     args = parser.parse_args()
     if not args.logs:
@@ -195,4 +196,11 @@ if __name__ == "__main__":
     pd.set_option("display.width", None)
     pd.set_option("display.expand_frame_repr", False)
 
-    print(final_rows)
+    if args.save:
+        summary_file = logs_dir.joinpath("summary.txt")
+        with open(summary_file, 'r') as f:
+            f.write(str(final_rows))
+
+        print(f"Summary saved at: {summary_file}")
+    else:
+        print(final_rows)
