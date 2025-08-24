@@ -5,6 +5,8 @@ import optuna
 from pathlib import Path
 from datetime import datetime
 import copy
+import math
+from typing import List
 
 import pyrallis
 
@@ -12,8 +14,21 @@ from dataset import load_dataset
 from train import train_log
 from config import Config, TrainConfig
 
+def suggest_layers(study: optuna.Trial, config: Config, label:str, choices: List[int]):
+    layers = []
+    layer_sizes = []
+    n = study.suggest_categorical(label, choices)
+    for i in range(n):
+        hl_range = config.tuning.hidden_layers_size_range
+        hl_size = study.suggest_int(f"{label}_sizes{i}", hl_range[0], hl_range[1])
+        hl_type = study.suggest_categorical(f"{label}_type{i}", config.tuning.hidden_layer_types)
+        layers.append(f"{hl_type}({hl_size})")
+        layer_sizes.append(hl_size)
 
-def create_train_config(study: optuna.Trial, config: Config) -> TrainConfig:
+    return layers, layer_sizes
+
+
+def create_train_config(study: optuna.Trial, config: Config, input_dim: int) -> TrainConfig:
     """Return a train config for the tuning study."""
     if not config.tuning:
         return config.train
@@ -21,21 +36,35 @@ def create_train_config(study: optuna.Trial, config: Config) -> TrainConfig:
     train = copy.deepcopy(config.train)
 
     if len(config.train.model.hidden_layers) == 0:
-        assert(config.tuning.n_hidden_layers), "n_hidden_layers must be specified."
         assert(config.tuning.hidden_layer_types), "hidden_layer_types must be specified."
         assert(config.tuning.hidden_layers_size_range), "hidden_layers_size_range must be specified."
 
-        n_hidden_layers = study.suggest_categorical("hidden_layers", config.tuning.n_hidden_layers)
-        hidden_layers = []
-        if n_hidden_layers == 0:
+        if config.tuning.split != None:
+            assert(config.tuning.split_num_groups), "split_num_groups can't be empty"
+            split = config.tuning.split
+            l1, l1_sizes = suggest_layers(study, config, "pre_split", split[0])
+            l2, l2_sizes = suggest_layers(study, config, "split", split[1])
+            l3, _= suggest_layers(study, config, "post_split", split[2])
+            hidden_layers = l1
+            if len(l2) > 0:
+                # Ensure input dim can be evenly split
+                split_input_dim = l1_sizes[-1] if len(l1_sizes) > 0 else input_dim
+                groups = study.suggest_categorical("spilt_num_groups", config.tuning.split_num_groups)
+                if split_input_dim % groups != 0 :
+                    good_dim = math.ceil(split_input_dim / groups) * groups
+                    l1.append(f"linear({good_dim})")
+                    l1_sizes.append(good_dim)
+
+                group_dim = l1_sizes[-1] // groups
+                join_dim = l2_sizes[-1] * groups
+                hidden_layers = l1 + [f"split({group_dim})"] + l2 + [f"join({join_dim})"] + l3
+        else:
+            assert(config.tuning.n_hidden_layers), "n_hidden_layers must be specified."
+            hidden_layers = suggest_layers(study, config, "hidden_layers", config.tuning.n_hidden_layers)
+
+        if len(hidden_layers) == 0:
             hl_type = study.suggest_categorical(f"hidden_layer_type_last", config.tuning.hidden_layer_types)
             hidden_layers.append(hl_type)
-        else:
-            for i in range(n_hidden_layers):
-                hl_range = config.tuning.hidden_layers_size_range
-                hl_size = study.suggest_int(f"hidden_layers_sizes{i}", hl_range[0], hl_range[1])
-                hl_type = study.suggest_categorical(f"hidden_layer_type{i}", config.tuning.hidden_layer_types)
-                hidden_layers.append(f"{hl_type}({hl_size})")
 
         train.model.hidden_layers = hidden_layers
 
@@ -109,7 +138,7 @@ def tune(config: Config, postgres: bool = False):
     # Run the study
     dataset = load_dataset(config.dataset)
     def objective(trial: optuna.Trial) -> float:
-        train_config = create_train_config(trial, config)
+        train_config = create_train_config(trial, config, dataset.input_dim())
         new_config = dataclasses.replace(config, train=train_config, tuning=None)
         trial.set_user_attr("config", pyrallis.dump(config))
 

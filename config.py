@@ -8,7 +8,7 @@ programmer to correct.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Tuple
 from pathlib import Path
 import re
 import traceback
@@ -161,6 +161,8 @@ class TuningConfig:
     hidden_layers_size_range: Optional[List[int]] = None
     n_hidden_layers: Optional[List[int]] = None
     hidden_layer_types: Optional[List[str]] = None
+    split: Optional[Tuple[List[int],List[int],List[int]]] = None
+    split_num_groups: Optional[List[int]] = None
     lr_range: Optional[List[float]] = None
     nalu_lr_range: Optional[List[float]] = None
     optimizer: Optional[List[str]] = None
@@ -191,6 +193,7 @@ class TuningConfig:
             if self.optimizer:
                 for optimizer in self.optimizer:
                     assert (optimizer in ['adamw', 'adagrad', 'rmsprop']), "optimizer must be one of ['adamw', 'adagrad', 'rmsprop']"
+
         except AssertionError as e:
             print(f"Error: {e}")
             raise e
