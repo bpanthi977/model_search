@@ -52,7 +52,7 @@ def read_run(trial_dir: Path):
     with open(trial_dir.joinpath("val_loss.csv"), "r") as f:
         def parse_row(row):
             max_l1 = float(row[3]) if len(row) >= 4 else None
-            return [int(row[0]), float(row[1]), float(row[2]), float(max_l1)]
+            return [int(row[0]), float(row[1]), float(row[2]), max_l1]
         # epoch, loss, time, max_l1
         val_loss = [parse_row(row) for row in list(csv.reader(f))]
 
