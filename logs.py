@@ -198,8 +198,8 @@ if __name__ == "__main__":
 
     if args.save:
         summary_file = logs_dir.joinpath("summary.txt")
-        with open(summary_file, 'r') as f:
-            f.write(str(final_rows))
+        with open(summary_file, 'w') as f:
+            f.write(final_rows.to_string())
 
         print(f"Summary saved at: {summary_file}")
     else:
