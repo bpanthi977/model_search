@@ -83,4 +83,11 @@ def load_dataset(config: DatasetConfig):
     train_Y = train_Y.reshape([-1, output_dim])
     validate_Y = validate_Y.reshape([-1, output_dim])
 
+    if config.device == "cuda":
+        device = torch.device("cuda")
+        train_X = train_X.to(device)
+        train_Y = train_Y.to(device)
+        validate_X = validate_X.to(device)
+        validate_Y = validate_Y.to(device)
+
     return Dataset(train_X, train_Y, validate_X, validate_Y)
