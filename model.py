@@ -337,8 +337,8 @@ def create_model(config: TrainConfig, dataset: Dataset):
         config.model,
         Normalization(
             dataset.trainX.mean(dim=0) if config.model.normalizeX else None,
-            dataset.trainX.std(dim=0)  if config.model.normalizeX else None,
+            dataset.trainX.std(dim=0) + 1e-5 if config.model.normalizeX else None,
             dataset.trainY.mean(dim=0) if config.model.normalizeY else None,
-            dataset.trainY.std(dim=0)  if config.model.normalizeY else None
+            dataset.trainY.std(dim=0) + 1e-5 if config.model.normalizeY else None
         )
     )
