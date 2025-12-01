@@ -25,7 +25,7 @@ def visualize_weights(model: torch.nn.Module, path: Path):
         count += 1
 
 
-def visualize_loss(log_dir: Path, fig_dir: Path):
+def visualize_loss(log_dir: Path, fig_dir: Path, figsize=None):
     def read_loss(path):
         with open(path, "r") as f:
             losses = [(int(row[0]), float(row[1])) for row in csv.reader(f)]
@@ -40,8 +40,18 @@ def visualize_loss(log_dir: Path, fig_dir: Path):
 
     df = pd.concat([tl, vl], ignore_index=True)
 
+    fs = 8
+    plt.rcParams.update({
+        'font.size': fs,
+        'axes.titlesize': fs,
+        'axes.labelsize': fs,
+        'xtick.labelsize': fs,
+        'ytick.labelsize': fs,
+        'legend.fontsize': fs,
+        'legend.title_fontsize': fs
+    })
 
-    plt.figure()
+    plt.figure(figsize=figsize)
     ax = sns.lineplot(data=df, x='epoch', y='loss', hue='type')
     ax.set_yscale('log')
     ax.set_title("Training and Validation Loss")
@@ -50,7 +60,8 @@ def visualize_loss(log_dir: Path, fig_dir: Path):
     plt.legend(title="Loss Type")
     plt.tight_layout()
 
-    plt.savefig(fig_dir.joinpath("loss_curve"))
+    plt.savefig(fig_dir.joinpath("loss_curve.svg"))
+    plt.savefig(fig_dir.joinpath("loss_curve.pdf"))
 
 
 if __name__ == "__main__":
@@ -100,5 +111,7 @@ if __name__ == "__main__":
     if model_path:
         model = torch.jit.load(model_path)
         visualize_weights(model, fig_dir)
+        parameter_count = sum(param.numel() for param in model.parameters())
+        print(f"parameter_count: {parameter_count}")
 
     exit(0)
