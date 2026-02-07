@@ -18,6 +18,7 @@ from train import train_log
 from tune import tune
 from config import Config
 from validate_model import create_model_from_checkpoint, validate
+from lr_tune import run_lr_tune
 
 def redirect_output(path: Path):
     log_file = open(path, 'a')
@@ -71,6 +72,7 @@ if __name__ == "__main__":
     parser.add_argument('-h', '--help', action='store_true')
     parser.add_argument('-c', '--config')
     parser.add_argument('--checkpoint')
+    parser.add_argument('--lr-tune', action='store_true')
     parser.add_argument('--validate', action='store_true')
     parser.add_argument('--create-model', action='store_true')
     parser.add_argument('-l', '--log-stdout', action='store_true')
@@ -127,6 +129,8 @@ if __name__ == "__main__":
             print(f"Specify --checkpoint for --create-model.")
             exit(1)
         create_model_from_checkpoint(config, checkpoint_path)
+    elif args.lr_tune:
+        run_lr_tune(config)
     elif not args.tune: # just train
         train(config, None, args.log_stdout, checkpoint_path)
     else:

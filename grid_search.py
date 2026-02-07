@@ -59,18 +59,24 @@ if __name__ == '__main__':
     )
     parser.add_argument('-c', '--config')
     parser.add_argument('-g', '--grid')
+    parser.add_argument('--extra-args', help="Extra arguments to pass to main.py")
     parser.add_argument('-w', '--wait', action='store_true')
     parser.add_argument('-sm', '--shared-memory', action='store_true')
     parser.add_argument('--seed')
     parser.add_argument('--dry-run', action="store_true")
     args = parser.parse_args()
 
+    if args.extra_args and args.shared_memory:
+        # shared_memory is only used for train while extra_args can trigger other activities too
+        print("--extra-args and --shared-memory are not compatible with each other.")
+        exit(1)
+
     config_file = args.config
     grid_file = args.grid
+    extra_args = args.extra_args.split(' ') if args.extra_args else []
     shared_memory = args.shared_memory
     dry_run = args.dry_run
     set_all_seeds(int(args.seed or '42'))
-
     config = pyrallis.parse(config_class=Config, config_path=config_file, args=[])
     with open(grid_file, "r") as f:
         grid = list(csv.reader(f, skipinitialspace=True))
@@ -88,6 +94,7 @@ if __name__ == '__main__':
         """Recursively explore the grid and at the end run_train."""
         if len(grid) == 0:
             trial_config = pyrallis.parse(config_class=Config, config_path=config_file, args=[str(arg) for arg in params])
+            params = [*params, *extra_args]
 
             if find_trial(trials, trial_config):
                 print("Skipped ", ' '.join([str(arg) for arg in params]))
