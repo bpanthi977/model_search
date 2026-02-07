@@ -13,11 +13,11 @@ import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from torch.utils.tensorboard.summary import hparams
 from tqdm import tqdm
 import csv
 import matplotlib.pyplot as plt
 import math
+from tensorboard_utils import extract_hparams, log_hparams
 
 # Add current directory to sys.path to ensure local imports work
 sys.path.append(os.getcwd())
@@ -94,30 +94,15 @@ def run_lr_tune(config: Config, dataset: Optional[Dataset] = None):
     print(f"LR Scheme: Start={initial_lr}, End={final_lr}, Steps={num_steps}, Multiplier={lr_multiplier:.5f}")
 
     # Log hyperparameters
-    hparams_dict = {
-        "study_name": config.study_name,
-        "dataset": config.dataset.db_file,
-        "model_init": config.train.model.init,
-        "model_activation": config.train.model.activation,
-        "normalize": config.train.model.normalize,
-        "optimizer": config.train.optim.optimizer,
-        "loss": config.train.loss,
-        "weight_decay": config.train.optim.weight_decay,
-        "batch_size": config.train.batch_size,
+    hparams_dict = extract_hparams(config)
+    hparams_dict.update({
         "initial_lr": initial_lr,
         "final_lr": final_lr,
         "num_steps": num_steps
-    }
-    # Add hidden layers configuration
-    if config.train.model.hidden_layers:
-         hparams_dict["hidden_layers"] = str(config.train.model.hidden_layers)
+    })
 
     metric_dict = {} # We don't have metrics yet
-    exp, ssi, sei = hparams(hparams_dict, metric_dict)
-
-    writer.file_writer.add_summary(exp)
-    writer.file_writer.add_summary(ssi)
-    writer.file_writer.add_summary(sei)
+    log_hparams(writer, hparams_dict, metric_dict)
 
     model.train()
 
