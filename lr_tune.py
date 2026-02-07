@@ -36,7 +36,12 @@ def set_all_seeds(seed: int = 42):
 
 def run_lr_tune(config: Config, dataset: Optional[Dataset] = None):
     # Setup directories
-    trial_name = datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    seed_bytes = os.urandom(8)
+    rng = random.Random(int.from_bytes(seed_bytes, byteorder='big'))
+    random_suffix = ''.join([rng.choice(string.ascii_letters) for i in range(4)])
+
+    trial_name = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + random_suffix
     run_dir = Path("logs_lr_tune").joinpath(config.study_name).joinpath(f"{trial_name}")
     run_dir.mkdir(parents=True, exist_ok=True)
 
