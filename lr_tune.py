@@ -87,6 +87,27 @@ def run_lr_tune(config: Config, dataset: Optional[Dataset] = None):
 
     print(f"LR Scheme: Start={initial_lr}, End={final_lr}, Steps={num_steps}, Multiplier={lr_multiplier:.5f}")
 
+    # Log hyperparameters
+    hparams = {
+        "study_name": config.study_name,
+        "dataset": config.dataset.db_file,
+        "model_init": config.train.model.init,
+        "model_activation": config.train.model.activation,
+        "normalize": config.train.model.normalize,
+        "optimizer": config.train.optim.optimizer,
+        "loss": config.train.loss,
+        "weight_decay": config.train.optim.weight_decay,
+        "batch_size": config.train.batch_size,
+        "initial_lr": initial_lr,
+        "final_lr": final_lr,
+        "num_steps": num_steps
+    }
+    # Add hidden layers configuration
+    if config.train.model.hidden_layers:
+         hparams["hidden_layers"] = str(config.train.model.hidden_layers)
+
+    writer.add_hparams(hparams, metric_dict={})
+
     model.train()
 
     step_count = 0
