@@ -19,6 +19,8 @@ from dataset import Dataset, load_dataset
 from model import MLP, create_model, MULT0, MULT1
 from visualize import visualize_weights, visualize_loss
 from log_gpu_utilization import log_gpu_utilization
+from torch.utils.tensorboard import SummaryWriter
+from tensorboard_utils import log_hparams, extract_hparams
 
 class MinMax():
     def __init__(self):
@@ -278,6 +280,18 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
     last_info: dict = {}
     env = Env()
 
+    # Initialize TensorBoard writer
+    writer = SummaryWriter(log_dir=str(run_dir))
+    # Log hyperparameters
+    inf = float("+inf")
+    log_hparams(writer, extract_hparams(config), {
+        "Train/Loss": inf,
+        "Val/Loss": inf,
+        "Val/MaxL1": inf,
+        'Val/Loss_Best': inf,
+        'Val/MaxL1_Best': inf,
+    }, 1)
+
     with open(run_dir.joinpath("config.yaml"), "w") as f:
         f.write(pyrallis.dump(config))
         print(config)
@@ -304,6 +318,14 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
                     save_checkpoint(env, run_dir.joinpath("checkpoint_best.pth"))
             else:
                 raise ValueError(f"[BUG] invalid evaluation metric {config.train.evaluation_metric}")
+
+            # Log to TensorBoard
+            writer.add_scalar('Train/Loss', info["train_loss"], epoch+1)
+            writer.add_scalar('Val/Loss', val_loss, epoch+1)
+            writer.add_scalar('Val/MaxL1', max_l1, epoch+1)
+            writer.add_scalar('Val/Loss_Best', env.best_val_loss, epoch+1)
+            writer.add_scalar('Val/MaxL1_Best', env.best_max_l1, epoch+1)
+
             w_train.writerow([epoch+1, info["train_loss"], info["train_time"], info["all_lr"]])
             w_val.writerow([epoch+1, val_loss, info["val_time"], max_l1])
             f_train.flush()
@@ -365,6 +387,7 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
 
     # Print run_dir
     print(run_dir)
+    writer.close()
 
     # Return the evaluation metric
     if config.train.evaluation_metric == 'val_loss':

@@ -21,7 +21,7 @@ def extract_hparams(config: Config):
          
     return hparams_dict
 
-def log_hparams(writer: SummaryWriter, hparams_dict: dict, metrics: dict):
+def log_hparams(writer: SummaryWriter, hparams_dict: dict, metrics: dict, global_step: int):
     """
     Logs hyperparameters and metrics to the main event file of the SummaryWriter.
     Consolidates hparams into the same file as scalar metrics.
@@ -33,3 +33,5 @@ def log_hparams(writer: SummaryWriter, hparams_dict: dict, metrics: dict):
     writer.file_writer.add_summary(exp)
     writer.file_writer.add_summary(ssi)
     writer.file_writer.add_summary(sei)
+    for k, v in metrics.items():
+        writer.add_scalar(k, v, global_step)

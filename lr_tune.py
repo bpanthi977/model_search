@@ -102,7 +102,7 @@ def run_lr_tune(config: Config, dataset: Optional[Dataset] = None):
     })
 
     metric_dict = {} # We don't have metrics yet
-    log_hparams(writer, hparams_dict, metric_dict)
+    log_hparams(writer, hparams_dict, metric_dict, 1)
 
     model.train()
 
