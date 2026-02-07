@@ -102,7 +102,12 @@ def create_model_from_checkpoint(config: Config, checkpoint_path: Path):
     model.load_state_dict(state_dict=checkpoint['model_state_dict'])
     print(f"Saved best val loss: {checkpoint['best_val_loss']}")
 
-    model_script = torch.jit.script(model.to(torch.device('cpu')).double())
+    model.eval()
+    for param in model.parameters():
+        param.requires_grad = False
+    model.cpu()
+    model.double()
+    model_script = torch.jit.script(model)
     model_path = checkpoint_path.joinpath("model.pt")
     model_script.save(model_path)
     print(f"Model saved to: {model_path}")
