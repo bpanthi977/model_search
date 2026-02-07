@@ -4,6 +4,8 @@ import torch
 import h5py
 import numpy as np
 from config import DatasetConfig
+import argparse
+from pathlib import Path
 
 class Dataset():
     """
@@ -91,3 +93,49 @@ def load_dataset(config: DatasetConfig):
         validate_Y = validate_Y.to(device)
 
     return Dataset(train_X, train_Y, validate_X, validate_Y)
+
+def list_all_groups(h5_object):
+    """
+    Recursively lists all groups within an h5py object (File or Group).
+    """
+    groups = []
+
+    def visitor_func(name, obj):
+        if isinstance(obj, h5py.Group):
+            groups.append(name)
+
+    h5_object.visititems(visitor_func)
+    return groups
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        prog="Dataset loader",
+        description="Load dataset and tell statistics about it."
+    )
+
+    parser.add_argument("--file",help="Dataset file (.h5)")
+
+    args = parser.parse_args()
+
+    if not args.file:
+        print(f"Dataset file not specified. --file")
+        exit(1)
+
+    dataset_file = Path(args.file)
+
+    if not dataset_file.exists():
+        print(f"File --file {dataset_file} doesn't exits.")
+        exit(1)
+
+    db = h5py.File(dataset_file)
+    groups = list_all_groups(db)
+
+    total = sum([db[group]['input'].shape[0] if 'input' in db[group] else 0 for group in groups])
+
+    for group in groups:
+        if 'input' in db[group]:
+            s = db[group]['input'].shape
+            print(f"{group}/input: {s} ({s[0]/total:.2f}%)")
+        if 'output' in db[group]:
+            s = db[group]['output'].shape
+            print(f"{group}/output: {s}")
