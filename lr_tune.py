@@ -140,7 +140,7 @@ def run_lr_tune(config: Config, dataset: Optional[Dataset] = None):
         Y_pred = model.model(model.normalize(batch_X, model.normalizeX))
         batch_Y_norm = model.normalize(batch_Y, model.normalizeY)
 
-        loss = loss_fn(Y_pred, batch_Y_norm)
+        loss = loss_fn(Y_pred, batch_Y_norm) / batch_X.shape[0]
 
         loss.backward()
         optimizer.step()
