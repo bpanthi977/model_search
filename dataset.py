@@ -60,8 +60,10 @@ def load_dataset(config: DatasetConfig):
     if not train:
         raise ValueError(f"label {label} or {label}_train not found in db file")
 
-    train_X = torch.from_numpy(sample(np.array(db[train]['input'], dtype=np.float64), config.sample))
-    train_Y = torch.from_numpy(sample(np.array(db[train]['output'], dtype=np.float64), config.sample))
+    subset = config.subset if config.subset > 0 else db[train]['input'].shape[0]
+
+    train_X = torch.from_numpy(sample(np.array(db[train]['input'][0:subset], dtype=np.float64), config.sample))
+    train_Y = torch.from_numpy(sample(np.array(db[train]['output'][0:subset], dtype=np.float64), config.sample))
 
     val = get_label(db, [label+'_validate', label])
     if val == train:

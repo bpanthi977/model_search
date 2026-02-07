@@ -20,6 +20,7 @@ class DatasetConfig:
     db_file: str = field(metadata={"help": ".h5 file where the input and output is dumped"})
     label: str = field(default="unknown", metadata={"help": "label of the approx block (suffix _train and _validation is added for respective splits)"})
     sample: float = field(default=1, metadata={"help": "Fraction of the dataset to use for training and validation. Default = 1 (i.e. 100%)"})
+    subset: int = field(default=-1, metadata={"help": "Only use first N samples for training. If subset = -1 use all dataset. It is helpful during initial model selection, to finda a model that can memorize the dataset."})
     device: str = field(default='cpu', metadata={"help": "Device to load the dataset in. Makesure the device has sufficient memory for that. Valid values: (cuda, cpu)"})
 
 def check_member(name, val, lst):
