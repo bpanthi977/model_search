@@ -13,6 +13,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard.summary import hparams
 from tqdm import tqdm
 import csv
 import matplotlib.pyplot as plt
@@ -93,7 +94,7 @@ def run_lr_tune(config: Config, dataset: Optional[Dataset] = None):
     print(f"LR Scheme: Start={initial_lr}, End={final_lr}, Steps={num_steps}, Multiplier={lr_multiplier:.5f}")
 
     # Log hyperparameters
-    hparams = {
+    hparams_dict = {
         "study_name": config.study_name,
         "dataset": config.dataset.db_file,
         "model_init": config.train.model.init,
@@ -109,9 +110,14 @@ def run_lr_tune(config: Config, dataset: Optional[Dataset] = None):
     }
     # Add hidden layers configuration
     if config.train.model.hidden_layers:
-         hparams["hidden_layers"] = str(config.train.model.hidden_layers)
+         hparams_dict["hidden_layers"] = str(config.train.model.hidden_layers)
 
-    writer.add_hparams(hparams, metric_dict={})
+    metric_dict = {} # We don't have metrics yet
+    exp, ssi, sei = hparams(hparams_dict, metric_dict)
+
+    writer.file_writer.add_summary(exp)
+    writer.file_writer.add_summary(ssi)
+    writer.file_writer.add_summary(sei)
 
     model.train()
 
