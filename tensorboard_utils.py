@@ -6,18 +6,21 @@ def extract_hparams(config: Config):
     """Extracts hyperparameters from Config object."""
     hparams_dict = {
         "study_name": config.study_name,
-        "dataset": config.dataset.db_file,
-        "model_init": config.train.model.init,
-        "model_activation": config.train.model.activation,
-        "normalize": config.train.model.normalize,
+        "dataset/file": config.dataset.db_file,
+        "dataset/subset": config.dataset.subset,
+        "dataset/sample": config.dataset.sample,
+        "model/init": config.train.model.init,
+        "model/activation": config.train.model.activation,
+        "model/normalize": config.train.model.normalize,
         "optimizer": config.train.optim.optimizer,
+        "lr": config.train.optim.lr,
         "loss": config.train.loss,
         "weight_decay": config.train.optim.weight_decay,
         "batch_size": config.train.batch_size,
     }
     
     if config.train.model.hidden_layers:
-         hparams_dict["hidden_layers"] = str(config.train.model.hidden_layers)
+         hparams_dict["model/hidden_layers"] = str(config.train.model.hidden_layers)
          
     return hparams_dict
 
