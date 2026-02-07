@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Optional, TypedDict
 from pathlib import Path
 import typing
+import math
 
 import torch
 import torch.nn as nn
@@ -169,6 +170,7 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
         torch.cuda.synchronize()
         start = datetime.now()
         train_y = MinMax()
+        grad_log_norm = MinMax()
         for batch_X, batch_Y in batch_bar:
             batch_X = batch_X.to(device)
             batch_Y = batch_Y.to(device)
@@ -179,13 +181,18 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
 
             loss = loss_fn(Y_pred, batch_Y)
             loss.backward()
+
+            total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=float('inf'))
+            grad_log_norm.update(torch.log(total_norm))
+
             optimizer.step()
 
             total_loss += loss.detach()
 
             train_y.update(Y_pred - batch_Y)
             batch_bar.set_postfix({
-                "ΔY": train_y.current()
+                "ΔY": train_y.current(),
+                "ln ∇J": grad_log_norm.current()
             })
 
 
@@ -221,6 +228,7 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
             f"Train {config.loss}": f"{mean_train_loss:.4f}",
             f"Val {config.loss}": f"{mean_val_loss:.4f}",
             f"ΔY": train_y.agg(),
+            f"ln ∇J": grad_log_norm.agg(),
             f"lr": [pg['lr'] for pg in optimizer.param_groups]
         })
 
