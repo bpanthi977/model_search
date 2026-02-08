@@ -123,7 +123,7 @@ def get_lr_scheduler(lr: str, optimizer: torch.optim.Optimizer, total_epochs: in
 class Env:
     epoch: Optional[int] = None
     best_val_loss: float = float('+inf')
-    best_max_l1: float = float('+inf')
+    best_val_l1: float = float('+inf')
     model: torch.nn.Module
     optimizer: torch.optim.Optimizer
     lr_scheduler: torch.optim.lr_scheduler.LRScheduler
@@ -186,20 +186,21 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
             batch_Y = batch_Y.to(device)
 
             optimizer.zero_grad()
-            Y_pred = model.model(model.normalize(batch_X, model.normalizeX))
-            batch_Y = model.normalize(batch_Y, model.normalizeY)
+            Y_pred_normalized = model.model(model.normalize(batch_X, model.normalizeX))
+            batch_Y_normalized = model.normalize(batch_Y, model.normalizeY)
 
-            loss = loss_fn(Y_pred, batch_Y)
+            loss = loss_fn(Y_pred_normalized, batch_Y_normalized)
             loss.backward()
 
-            total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=float('inf'))
+            total_norm = torch.nn.utils.get_total_norm(model.parameters(), norm_type=2)
             grad_norm.update(total_norm)
 
             optimizer.step()
 
             total_loss += loss.detach() * batch_X.shape[0]
 
-            train_y.update(Y_pred - batch_Y)
+            Y_pred_denormalized = model.denormalize(Y_pred_normalized, model.normalizeY)
+            train_y.update(Y_pred_denormalized - batch_Y)
             batch_bar.set_postfix({
                 "ΔY": train_y.current(),
                 "∇J": grad_norm.current()
@@ -214,18 +215,20 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
         batch_bar = tqdm(val_dataloader, unit="batch", leave=False)
         total_loss = torch.tensor(0.0).to(device)
         start = datetime.now()
-        val_l1 = MinMax()
+        total_l1 = torch.tensor(0.0).to(device)
         with torch.no_grad():
             for batch_X, batch_Y in batch_bar:
                 batch_X = batch_X.to(device)
                 batch_Y = batch_Y.to(device)
-                Y_pred = model.model(model.normalize(batch_X, model.normalizeX))
-                batch_Y = model.normalize(batch_Y, model.normalizeY)
-                loss = loss_fn(Y_pred, batch_Y)
+
+                Y_pred_normalized = model.model(model.normalize(batch_X, model.normalizeX))
+                batch_Y_normalized = model.normalize(batch_Y, model.normalizeY)
+                loss = loss_fn(Y_pred_normalized, batch_Y_normalized)
 
                 total_loss += loss.detach() * batch_X.shape[0]
 
-                val_l1.update((Y_pred - batch_Y) / batch_X.shape[0])
+                Y_pred_denormalized = model.denormalize(Y_pred_normalized, model.normalizeY)
+                total_l1 += (Y_pred_denormalized - batch_Y)
                 batch_bar.set_postfix({
                     f"ΔY": val_l1.current()
                 })
@@ -233,6 +236,7 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
             torch.cuda.synchronize()
             val_time = (datetime.now() - start).microseconds / 1000.0
             mean_val_loss = total_loss.item() / len(val_dataloader.dataset)
+            mean_val_l1 = total_l1.item() / len(val_dataloader.dataset)
 
         epoch_bar.set_postfix({
             f"Train {config.loss}": f"{mean_train_loss:.4f}",
@@ -242,16 +246,15 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
             f"lr": [pg['lr'] for pg in optimizer.param_groups]
         })
 
-        max_l1 = max(abs(val_l1.max), abs(val_l1.min)) or float('+inf')
         env.epoch = epoch
         env.best_val_loss = min(env.best_val_loss, mean_val_loss)
-        env.best_max_l1 = min(env.best_max_l1, max_l1)
+        env.best_val_l1 = min(env.best_val_l1, mean_val_l1)
         for callback in callbacks:
             callback({
                 "epoch": epoch,
                 "train_loss": mean_train_loss,
                 "val_loss": mean_val_loss,
-                "max_l1": max_l1,
+                "val_l1": mean_val_l1,
                 "train_time": train_time,
                 "Grad/min": grad_norm.min,
                 "Grad/max": grad_norm.max,
@@ -298,16 +301,20 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
     log_hparams(writer, extract_hparams(config), {
         "Train/Loss": inf,
         "Val/Loss": inf,
-        "Val/MaxL1": inf,
+        "Val/L1": inf,
         'Val/Loss_Best': inf,
-        'Val/MaxL1_Best': inf,
+        'Val/L1_Best': inf,
     }, 1)
 
     wandb_run = wandb.init(
         entity="bpanthi977",
         project=config.study_name,
+        name=str(trial_id),
         config=extract_hparams(config)
     )
+    wandb_run.define_metric("Train/loss", summary="min")
+    wandb_run.define_metric("Val/Loss", summary="min")
+    wandb_run.define_metric("Val/L1", summary="min")
 
     with open(run_dir.joinpath("config.yaml"), "w") as f:
         f.write(pyrallis.dump(config))
@@ -326,12 +333,9 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
 
             epoch = info["epoch"]
             val_loss = info["val_loss"]
-            max_l1 = info['max_l1']
+            val_l1 = info['val_l1']
             if config.train.evaluation_metric == 'val_loss':
                 if val_loss == env.best_val_loss:
-                    save_checkpoint(env, run_dir.joinpath("checkpoint_best.pth"))
-            elif config.train.evaluation_metric == 'max_l1':
-                if max_l1 == env.best_max_l1:
                     save_checkpoint(env, run_dir.joinpath("checkpoint_best.pth"))
             else:
                 raise ValueError(f"[BUG] invalid evaluation metric {config.train.evaluation_metric}")
@@ -340,9 +344,7 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
             metrics = {
                 'Train/Loss': info["train_loss"],
                 'Val/Loss': val_loss,
-                'Val/MaxL1': max_l1,
-                'Val/Loss_Best': env.best_val_loss,
-                'Val/MaxL1_Best': env.best_max_l1,
+                'Val/L1': val_l1,
                 "Grad/min": info['Grad/min'],
                 "Grad/max": info['Grad/max'],
                 "Grad/mean": info['Grad/mean']
@@ -351,8 +353,11 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
             for (k,v) in metrics.items():
                 writer.add_scalar(k, v, epoch + 1)
 
+            writer.add_scalar('Val/Loss_Best', env.best_val_loss, epoch+1)
+            writer.add_scalar('Val/L1_Best', env.best_val_l1, epoch+1)
+
             w_train.writerow([epoch+1, info["train_loss"], info["train_time"], info["all_lr"]])
-            w_val.writerow([epoch+1, val_loss, info["val_time"], max_l1])
+            w_val.writerow([epoch+1, val_loss, info["val_time"], val_l1])
             f_train.flush()
             f_val.flush()
 
@@ -395,9 +400,9 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
              ["end_time", datetime.now().strftime("%Y%m%d-%H:%M:%S")],
              ["total_time", format_duration(datetime.now() - start)],
              ["val_loss", last_info['val_loss']],
-             ["max_l1", last_info['max_l1']],
+             ["val_l1", last_info['val_l1']],
              ["best_val_loss", env.best_val_loss],
-             ["best_max_l1", env.best_max_l1],
+             ["best_val_l1", env.best_val_l1],
              ["loss", config.train.loss],
              ["training_size", dataset.trainX.shape[0]],
              ["validation_size", dataset.validateX.shape[0]],
@@ -417,7 +422,5 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
     # Return the evaluation metric
     if config.train.evaluation_metric == 'val_loss':
         return last_info['val_loss']
-    elif config.train.evaluation_metric == 'max_l1':
-        return last_info['max_l1']
     else:
         raise ValueError(f"[BUG] invalid evaluation metric {config.train.evaluation_metric}")
