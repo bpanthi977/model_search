@@ -18,6 +18,7 @@ import csv
 import matplotlib.pyplot as plt
 import math
 from tensorboard_utils import extract_hparams, log_hparams
+import wandb
 
 # Add current directory to sys.path to ensure local imports work
 sys.path.append(os.getcwd())
@@ -48,9 +49,6 @@ def run_lr_tune(config: Config, dataset: Optional[Dataset] = None):
 
     print(f"Running LR Range Test. Logs will be saved to: {run_dir}")
 
-    # Initialize TensorBoard writer
-    writer = SummaryWriter(log_dir=str(run_dir))
-
     # Save config
     with open(run_dir.joinpath("config.yaml"), "w") as f:
         f.write(pyrallis.dump(config))
@@ -67,7 +65,7 @@ def run_lr_tune(config: Config, dataset: Optional[Dataset] = None):
     print(f"Model created on device: {device}")
 
     # Setup Optimizer with tiny initial LR
-    initial_lr = 1e-7
+    initial_lr = 1e-6
     optimizer = get_optimizer(config.train.optim, model)
 
     # Manually set initial LR
@@ -93,6 +91,9 @@ def run_lr_tune(config: Config, dataset: Optional[Dataset] = None):
 
     print(f"LR Scheme: Start={initial_lr}, End={final_lr}, Steps={num_steps}, Multiplier={lr_multiplier:.5f}")
 
+
+    # Initialize TensorBoard writer
+    writer = SummaryWriter(log_dir=str(run_dir))
     # Log hyperparameters
     hparams_dict = extract_hparams(config)
     hparams_dict.update({
@@ -100,6 +101,13 @@ def run_lr_tune(config: Config, dataset: Optional[Dataset] = None):
         "final_lr": final_lr,
         "num_steps": num_steps
     })
+
+    wandb_run = wandb.init(
+        entity="bpanthi977",
+        project=config.study_name+"_lr_tune",
+        name=str(trial_name),
+        config=hparams_dict
+    )
 
     metric_dict = {} # We don't have metrics yet
     log_hparams(writer, hparams_dict, metric_dict, 1)
@@ -136,7 +144,7 @@ def run_lr_tune(config: Config, dataset: Optional[Dataset] = None):
         Y_pred = model.model(model.normalize(batch_X, model.normalizeX))
         batch_Y_norm = model.normalize(batch_Y, model.normalizeY)
 
-        loss = loss_fn(Y_pred, batch_Y_norm) / batch_X.shape[0]
+        loss = loss_fn(Y_pred, batch_Y_norm)
 
         loss.backward()
         optimizer.step()
@@ -147,6 +155,7 @@ def run_lr_tune(config: Config, dataset: Optional[Dataset] = None):
         # Log to TensorBoard
         writer.add_scalar('Train/Loss', current_loss, step_count)
         writer.add_scalar('Train/LR', current_lr, step_count)
+        wandb_run.log({'Train/Loss': current_loss, 'Train/LR': current_lr})
 
         lrs.append(current_lr)
         losses.append(current_loss)
