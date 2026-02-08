@@ -24,12 +24,16 @@ from tensorboard_utils import log_hparams, extract_hparams
 
 class MinMax():
     def __init__(self):
-        self.min = None
-        self.max = None
+        self.min = float('+inf')
+        self.max = float('-inf')
         self.cur_min = 0.0
         self.cur_max = 0.0
+        self.total = 0.0
+        self.count = 0
 
     def update(self, tensor: torch.Tensor):
+        self.total += tensor.sum().detach().item()
+        self.count += 1
         self.cur_min = tensor.min().detach().item()
         self.cur_max = tensor.max().detach().item()
 
@@ -42,6 +46,9 @@ class MinMax():
             self.max = max(self.max, self.cur_max)
         else:
             self.max = self.cur_max
+
+    def mean(self):
+        return self.total / self.count
 
     def current(self):
         return f"({self.cur_min:.4f},{self.cur_max:.4f})"
@@ -172,7 +179,7 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
         torch.cuda.synchronize()
         start = datetime.now()
         train_y = MinMax()
-        grad_log_norm = MinMax()
+        grad_norm = MinMax()
         for batch_X, batch_Y in batch_bar:
             batch_X = batch_X.to(device)
             batch_Y = batch_Y.to(device)
@@ -185,7 +192,7 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
             loss.backward()
 
             total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=float('inf'))
-            grad_log_norm.update(torch.log(total_norm))
+            grad_norm.update(total_norm)
 
             optimizer.step()
 
@@ -194,7 +201,7 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
             train_y.update(Y_pred - batch_Y)
             batch_bar.set_postfix({
                 "ΔY": train_y.current(),
-                "ln ∇J": grad_log_norm.current()
+                "∇J": grad_norm.current()
             })
 
 
@@ -206,7 +213,6 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
         batch_bar = tqdm(val_dataloader, unit="batch", leave=False)
         total_loss = torch.tensor(0.0).to(device)
         start = datetime.now()
-
         val_l1 = MinMax()
         with torch.no_grad():
             for batch_X, batch_Y in batch_bar:
@@ -230,7 +236,7 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
             f"Train {config.loss}": f"{mean_train_loss:.4f}",
             f"Val {config.loss}": f"{mean_val_loss:.4f}",
             f"ΔY": train_y.agg(),
-            f"ln ∇J": grad_log_norm.agg(),
+            f"∇J": grad_norm.agg(),
             f"lr": [pg['lr'] for pg in optimizer.param_groups]
         })
 
@@ -245,6 +251,9 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
                 "val_loss": mean_val_loss,
                 "max_l1": max_l1,
                 "train_time": train_time,
+                "Grad/min": grad_norm.min,
+                "Grad/max": grad_norm.max,
+                "Grad/mean": grad_norm.mean(),
                 "val_time": val_time,
                 "all_lr": [pg['lr'] for pg in optimizer.param_groups]
             })
@@ -325,6 +334,9 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
             writer.add_scalar('Val/MaxL1', max_l1, epoch+1)
             writer.add_scalar('Val/Loss_Best', env.best_val_loss, epoch+1)
             writer.add_scalar('Val/MaxL1_Best', env.best_max_l1, epoch+1)
+            writer.add_scalar("Grad/min", info['Grad/min'], epoch+1)
+            writer.add_scalar("Grad/max", info['Grad/max'], epoch+1)
+            writer.add_scalar("Grad/mean", info['Grad/mean'], epoch+1)
 
             w_train.writerow([epoch+1, info["train_loss"], info["train_time"], info["all_lr"]])
             w_val.writerow([epoch+1, val_loss, info["val_time"], max_l1])
