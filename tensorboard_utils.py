@@ -17,6 +17,7 @@ def extract_hparams(config: Config):
         "loss": config.train.loss,
         "weight_decay": config.train.optim.weight_decay,
         "batch_size": config.train.batch_size,
+        "epochs": config.train.epoch
     }
     
     if config.train.model.hidden_layers:

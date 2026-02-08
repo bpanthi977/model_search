@@ -13,6 +13,7 @@ from torch.optim import lr_scheduler
 from torch.utils.data import TensorDataset, DataLoader
 from tqdm import tqdm
 import pyrallis
+import wandb
 
 from config import Config, TrainConfig, OptimizerConfig, parse_lr_scheduler
 from dataset import Dataset, load_dataset
@@ -301,6 +302,12 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
         'Val/MaxL1_Best': inf,
     }, 1)
 
+    wandb_run = wandb.init(
+        entity="bpanthi977",
+        project=config.study_name,
+        config=extract_hparams(config)
+    )
+
     with open(run_dir.joinpath("config.yaml"), "w") as f:
         f.write(pyrallis.dump(config))
         print(config)
@@ -329,14 +336,19 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
                 raise ValueError(f"[BUG] invalid evaluation metric {config.train.evaluation_metric}")
 
             # Log to TensorBoard
-            writer.add_scalar('Train/Loss', info["train_loss"], epoch+1)
-            writer.add_scalar('Val/Loss', val_loss, epoch+1)
-            writer.add_scalar('Val/MaxL1', max_l1, epoch+1)
-            writer.add_scalar('Val/Loss_Best', env.best_val_loss, epoch+1)
-            writer.add_scalar('Val/MaxL1_Best', env.best_max_l1, epoch+1)
-            writer.add_scalar("Grad/min", info['Grad/min'], epoch+1)
-            writer.add_scalar("Grad/max", info['Grad/max'], epoch+1)
-            writer.add_scalar("Grad/mean", info['Grad/mean'], epoch+1)
+            metrics = {
+                'Train/Loss': info["train_loss"],
+                'Val/Loss': val_loss,
+                'Val/MaxL1': max_l1,
+                'Val/Loss_Best': env.best_val_loss,
+                'Val/MaxL1_Best': env.best_max_l1,
+                "Grad/min": info['Grad/min'],
+                "Grad/max": info['Grad/max'],
+                "Grad/mean": info['Grad/mean']
+            }
+            wandb_run.log(metrics)
+            for (k,v) in metrics.items():
+                writer.add_scalar(k, v, epoch + 1)
 
             w_train.writerow([epoch+1, info["train_loss"], info["train_time"], info["all_lr"]])
             w_val.writerow([epoch+1, val_loss, info["val_time"], max_l1])
