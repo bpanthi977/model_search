@@ -223,12 +223,13 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
             for batch_X, batch_Y in batch_bar:
                 batch_X = batch_X.to(device)
                 batch_Y = batch_Y.to(device)
+                batch_size = batch_X.shape[0]
 
                 Y_pred_normalized = model.model(model.normalize(batch_X, model.normalizeX))
                 batch_Y_normalized = model.normalize(batch_Y, model.normalizeY)
                 loss = loss_fn(Y_pred_normalized, batch_Y_normalized)
 
-                total_loss += loss.detach() * batch_X.shape[0]
+                total_loss += loss.detach() * batch_size
 
                 Y_pred_denormalized = model.denormalize(Y_pred_normalized, model.normalizeY)
                 l1 = ((Y_pred_denormalized - batch_Y).norm(p=1) / batch_Y.numel()).item()
