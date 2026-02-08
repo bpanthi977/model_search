@@ -61,11 +61,11 @@ class MinMax():
 def get_loss_fn(loss: str):
     """Create loss function."""
     if loss == 'mse':
-        return nn.MSELoss(reduction='sum')
+        return nn.MSELoss(reduction='mean')
     elif loss == 'mae':
-        return nn.L1Loss(reduction='sum')
+        return nn.L1Loss(reduction='mean')
     elif loss == 'smoothl1':
-        return nn.SmoothL1Loss(reduction='sum', beta=1.0)
+        return nn.SmoothL1Loss(reduction='mean', beta=1.0)
 
     assert False, f"Impossible value of loss function {loss}. Fix validate in TrainConfig."
 
@@ -197,7 +197,7 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
 
             optimizer.step()
 
-            total_loss += loss.detach()
+            total_loss += loss.detach() * batch_X.shape[0]
 
             train_y.update(Y_pred - batch_Y)
             batch_bar.set_postfix({
@@ -219,12 +219,13 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
             for batch_X, batch_Y in batch_bar:
                 batch_X = batch_X.to(device)
                 batch_Y = batch_Y.to(device)
-                Y_pred = model.forward(batch_X)
+                Y_pred = model.model(model.normalize(batch_X, model.normalizeX))
+                batch_Y = model.normalize(batch_Y, model.normalizeY)
                 loss = loss_fn(Y_pred, batch_Y)
 
-                total_loss += loss.detach()
+                total_loss += loss.detach() * batch_X.shape[0]
 
-                val_l1.update(Y_pred - batch_Y)
+                val_l1.update((Y_pred - batch_Y) / batch_X.shape[0])
                 batch_bar.set_postfix({
                     f"ΔY": val_l1.current()
                 })
