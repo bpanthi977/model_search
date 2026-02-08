@@ -179,11 +179,12 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
         batch_bar = tqdm(train_dataloader, unit="batch", leave=False)
         torch.cuda.synchronize()
         start = datetime.now()
-        train_y = MinMax()
-        grad_norm = MinMax()
+        total_l1 = 0.0
+        agg_grad_norm = MinMax()
         for batch_X, batch_Y in batch_bar:
             batch_X = batch_X.to(device)
             batch_Y = batch_Y.to(device)
+            batch_size = batch_X.shape[0]
 
             optimizer.zero_grad()
             Y_pred_normalized = model.model(model.normalize(batch_X, model.normalizeX))
@@ -192,30 +193,32 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
             loss = loss_fn(Y_pred_normalized, batch_Y_normalized)
             loss.backward()
 
-            total_norm = torch.nn.utils.get_total_norm(model.parameters(), norm_type=2)
-            grad_norm.update(total_norm)
+            grad_norm = torch.nn.utils.get_total_norm([p.grad for p in model.parameters() if p.grad is not None])
+            agg_grad_norm.update(grad_norm)
 
             optimizer.step()
 
-            total_loss += loss.detach() * batch_X.shape[0]
+            total_loss += loss.detach() * batch_size
 
             Y_pred_denormalized = model.denormalize(Y_pred_normalized, model.normalizeY)
-            train_y.update(Y_pred_denormalized - batch_Y)
+            l1 = ((Y_pred_denormalized - batch_Y).norm(p=1) / batch_Y.numel()).item()
+            total_l1 += l1 * batch_size
             batch_bar.set_postfix({
-                "ΔY": train_y.current(),
-                "∇J": grad_norm.current()
+                "ΔY": f"{l1:.4f}",
+                "∇J": f"{agg_grad_norm.min:.4f}"
             })
 
 
         torch.cuda.synchronize()
         train_time = (datetime.now() - start).microseconds / 1000.0
         mean_train_loss = total_loss.item() / len(train_dataloader.dataset)
+        mean_train_l1 = total_l1 / len(train_dataloader.dataset)
 
         model.eval()
         batch_bar = tqdm(val_dataloader, unit="batch", leave=False)
         total_loss = torch.tensor(0.0).to(device)
         start = datetime.now()
-        total_l1 = torch.tensor(0.0).to(device)
+        total_l1 = 0.0
         with torch.no_grad():
             for batch_X, batch_Y in batch_bar:
                 batch_X = batch_X.to(device)
@@ -228,21 +231,22 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
                 total_loss += loss.detach() * batch_X.shape[0]
 
                 Y_pred_denormalized = model.denormalize(Y_pred_normalized, model.normalizeY)
-                total_l1 += (Y_pred_denormalized - batch_Y)
+                l1 = ((Y_pred_denormalized - batch_Y).norm(p=1) / batch_Y.numel()).item()
+                total_l1 += l1 * batch_size
                 batch_bar.set_postfix({
-                    f"ΔY": val_l1.current()
+                    f"ΔY": l1
                 })
 
             torch.cuda.synchronize()
             val_time = (datetime.now() - start).microseconds / 1000.0
             mean_val_loss = total_loss.item() / len(val_dataloader.dataset)
-            mean_val_l1 = total_l1.item() / len(val_dataloader.dataset)
+            mean_val_l1 = total_l1 / len(val_dataloader.dataset)
 
         epoch_bar.set_postfix({
             f"Train {config.loss}": f"{mean_train_loss:.4f}",
             f"Val {config.loss}": f"{mean_val_loss:.4f}",
-            f"ΔY": train_y.agg(),
-            f"∇J": grad_norm.agg(),
+            f"ΔY": mean_train_l1,
+            f"∇J": agg_grad_norm.agg(),
             f"lr": [pg['lr'] for pg in optimizer.param_groups]
         })
 
@@ -253,12 +257,13 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
             callback({
                 "epoch": epoch,
                 "train_loss": mean_train_loss,
+                "train_l1": mean_train_l1,
                 "val_loss": mean_val_loss,
                 "val_l1": mean_val_l1,
                 "train_time": train_time,
-                "Grad/min": grad_norm.min,
-                "Grad/max": grad_norm.max,
-                "Grad/mean": grad_norm.mean(),
+                "Grad/min": agg_grad_norm.min,
+                "Grad/max": agg_grad_norm.max,
+                "Grad/mean": agg_grad_norm.mean(),
                 "val_time": val_time,
                 "all_lr": [pg['lr'] for pg in optimizer.param_groups]
             })
@@ -300,6 +305,7 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
     inf = float("+inf")
     log_hparams(writer, extract_hparams(config), {
         "Train/Loss": inf,
+        "Train/L1": inf,
         "Val/Loss": inf,
         "Val/L1": inf,
         'Val/Loss_Best': inf,
@@ -313,6 +319,7 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
         config=extract_hparams(config)
     )
     wandb_run.define_metric("Train/loss", summary="min")
+    wandb_run.define_metric("Train/L1", summary="min")
     wandb_run.define_metric("Val/Loss", summary="min")
     wandb_run.define_metric("Val/L1", summary="min")
 
@@ -343,6 +350,7 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
             # Log to TensorBoard
             metrics = {
                 'Train/Loss': info["train_loss"],
+                'Train/L1': info["train_l1"],
                 'Val/Loss': val_loss,
                 'Val/L1': val_l1,
                 "Grad/min": info['Grad/min'],
