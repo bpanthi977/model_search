@@ -380,6 +380,8 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
             pass
         finally:
             stop_gpu_logging = True
+            writer.close()
+            wandb.finish()
 
     # Save model
     model = env.model
@@ -414,7 +416,6 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
 
     # Print run_dir
     print(run_dir)
-    writer.close()
 
     # Return the evaluation metric
     if config.train.evaluation_metric == 'val_loss':

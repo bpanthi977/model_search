@@ -211,6 +211,7 @@ def run_lr_tune(config: Config, dataset: Optional[Dataset] = None):
 
     # Close the writer
     writer.close()
+    wandb.finish()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="LR Range Test")
