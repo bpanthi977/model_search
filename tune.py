@@ -60,7 +60,7 @@ def create_train_config(study: optuna.Trial, config: Config, input_dim: int) -> 
                 hidden_layers = l1 + [f"split({group_dim})"] + l2 + [f"join({join_dim})"] + l3
         else:
             assert(config.tuning.n_hidden_layers), "n_hidden_layers must be specified."
-            hidden_layers = suggest_layers(study, config, "hidden_layers", config.tuning.n_hidden_layers)
+            hidden_layers = suggest_layers(study, config, "hidden_layers", config.tuning.n_hidden_layers)[0]
 
         if len(hidden_layers) == 0:
             hl_type = study.suggest_categorical(f"hidden_layer_type_last", config.tuning.hidden_layer_types)
@@ -87,6 +87,8 @@ def create_train_config(study: optuna.Trial, config: Config, input_dim: int) -> 
         train.model.normalizeX = train.model.normalize
         train.model.normalizeY = train.model.normalize
 
+    # Validate
+    pyrallis.decode(type(train), pyrallis.encode(train))
     return train
 
 def prev_trails_count(study: optuna.Study):
