@@ -21,7 +21,7 @@ from model import MLP, create_model, MULT0, MULT1
 from visualize import visualize_weights, visualize_loss
 from log_gpu_utilization import log_gpu_utilization
 from torch.utils.tensorboard import SummaryWriter
-from tensorboard_utils import log_hparams, extract_hparams
+from utils import log_hparams, extract_hparams, get_loss_fn
 
 class MinMax():
     def __init__(self):
@@ -56,18 +56,6 @@ class MinMax():
 
     def agg(self):
         return f"({self.min:.4f},{self.max:.4f})"
-
-
-def get_loss_fn(loss: str):
-    """Create loss function."""
-    if loss == 'mse':
-        return nn.MSELoss(reduction='mean')
-    elif loss == 'mae':
-        return nn.L1Loss(reduction='mean')
-    elif loss == 'smoothl1':
-        return nn.SmoothL1Loss(reduction='mean', beta=1.0)
-
-    assert False, f"Impossible value of loss function {loss}. Fix validate in TrainConfig."
 
 def collect_params(model: nn.Module):
     usual_params = []

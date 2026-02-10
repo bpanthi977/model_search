@@ -17,7 +17,7 @@ from tqdm import tqdm
 import csv
 import matplotlib.pyplot as plt
 import math
-from tensorboard_utils import extract_hparams, log_hparams
+from utils import extract_hparams, log_hparams
 import wandb
 
 # Add current directory to sys.path to ensure local imports work

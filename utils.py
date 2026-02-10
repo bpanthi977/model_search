@@ -1,6 +1,19 @@
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.tensorboard.summary import hparams
+import torch.nn as nn
+
 from config import Config
+
+def get_loss_fn(loss: str):
+    """Create loss function."""
+    if loss == 'mse':
+        return nn.MSELoss(reduction='mean')
+    elif loss == 'mae':
+        return nn.L1Loss(reduction='mean')
+    elif loss == 'smoothl1':
+        return nn.SmoothL1Loss(reduction='mean', beta=1.0)
+
+    assert False, f"Impossible value of loss function {loss}. Fix validate in TrainConfig."
 
 def extract_hparams(config: Config):
     """Extracts hyperparameters from Config object."""

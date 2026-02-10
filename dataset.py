@@ -6,6 +6,7 @@ import numpy as np
 from config import DatasetConfig
 import argparse
 from pathlib import Path
+from utils import get_loss_fn
 
 class Dataset():
     """
@@ -109,6 +110,29 @@ def list_all_groups(h5_object):
     h5_object.visititems(visitor_func)
     return groups
 
+def print_stats(tensor, ref_mean=None, ref_std=None, ref_name=""):
+    mean = tensor.mean(dim=0)
+    std = tensor.std(dim=0) + 1e-5
+    ref_mean = ref_mean if ref_mean != None else mean
+    ref_std = ref_std if ref_std != None else std
+    ref_name = f"(wrt {ref_name})" if ref_name else ""
+
+    np.set_printoptions(precision=4, sign='+')
+    l1 = get_loss_fn('mae')(tensor, ref_mean.unsqueeze(0).expand(tensor.shape))
+    l2 = get_loss_fn('mse')(tensor, ref_mean.unsqueeze(0).expand(tensor.shape))
+    sl1 = get_loss_fn('smoothl1')(tensor, ref_mean.unsqueeze(0).expand(tensor.shape))
+    print(f" mean = {mean.numpy()}\n std  = {std.numpy()}")
+    print(f" l1 = {l1:.4f}, smooth_l1 = {sl1:.4f} l2={l2:.4f} {ref_name}")
+
+    normalized = (tensor - ref_mean) / ref_std
+    zeros = torch.zeros_like(normalized)
+
+    l1 = get_loss_fn('mae')(normalized, zeros)
+    l2 = get_loss_fn('mse')(normalized, zeros)
+    sl1 = get_loss_fn('smoothl1')(normalized, zeros)
+    print(f" normalized l1 = {l1:.4f}, smooth_l1 = {sl1:.4f} l2={l2:.4f} {ref_name}")
+    print(f"\n")
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="Dataset loader",
@@ -134,10 +158,21 @@ if __name__ == "__main__":
 
     total = sum([db[group]['input'].shape[0] if 'input' in db[group] else 0 for group in groups])
 
+    ref_mean = None
+    ref_std = None
+    ref_name = None
     for group in groups:
         if 'input' in db[group]:
             s = db[group]['input'].shape
             print(f"{group}/input: {s} ({s[0]/total:.2f}%)")
+            tensor = torch.from_numpy(np.array(db[group]['input'], dtype=np.float64))
+            print_stats(tensor)
         if 'output' in db[group]:
             s = db[group]['output'].shape
             print(f"{group}/output: {s}")
+            tensor = torch.from_numpy(np.array(db[group]['output'], dtype=np.float64))
+            print_stats(tensor, ref_mean, ref_std, ref_name)
+            if str.endswith(group, "train"):
+                ref_name = f"{group}/output"
+                ref_mean = tensor.mean(dim=0)
+                ref_std = tensor.std(dim=0) + 1e-5
