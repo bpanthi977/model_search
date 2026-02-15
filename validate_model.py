@@ -43,10 +43,11 @@ def validate(config: Config, checkpoint_path: Path):
         for i, (batch_X, batch_Y) in enumerate(batch_bar):
             batch_X = batch_X.to(device)
             batch_Y = batch_Y.to(device)
+            batch_size = batch_X.shape[0]
             Y_pred = model.forward(batch_X)
-            loss = loss_fn(Y_pred, batch_Y)
+            loss = loss_fn(model.normalize(Y_pred, model.normalizeY), model.normalize(batch_Y, model.normalizeY))
 
-            total_loss += loss.detach().item()
+            total_loss += loss.detach().item() * batch_size
 
             diff = (Y_pred - batch_Y).detach()
             set_hist(hist_pred, i, Y_pred)
