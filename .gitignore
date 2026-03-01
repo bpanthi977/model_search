@@ -9,3 +9,7 @@ scripts/.ipynb_checkpoints
 /models/
 /logs_lr_tune/
 /logs/
+/configs/
+/configs2/
+.env
+.dir-locals.el
