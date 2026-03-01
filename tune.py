@@ -161,7 +161,7 @@ def tune(config: Config, postgres: bool = False):
                     raise optuna.TrialPruned()
 
         trial_name = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + str(trial.number)
-        return train_log(new_config, trial_name, callbacks=[pruning_callback], dataset=dataset)
+        return train_log(new_config, trial_name, callbacks=[pruning_callback], dataset=dataset, checkpoint=None)
 
     n_trials = config.tuning.trials - prev_trails_count(study)
     study.optimize(objective, n_trials=n_trials)

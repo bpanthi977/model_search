@@ -15,7 +15,7 @@ from tqdm import tqdm
 import pyrallis
 import wandb
 
-from config import Config, TrainConfig, OptimizerConfig, parse_lr_scheduler
+from config import Config, TrainConfig, OptimizerConfig, parse_lr_scheduler, Checkpoint
 from dataset import Dataset, load_dataset
 from model import MLP, create_model, MULT0, MULT1
 from visualize import visualize_weights, visualize_loss
@@ -119,13 +119,6 @@ class Env:
     def __init__(self):
         pass
 
-class Checkpoint(TypedDict):
-    epoch: int
-    best_val_loss: float
-    model_state_dict: dict
-    optimizer_state_dict: dict
-    lr_scheduler_state_dict: dict
-
 def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint: Optional[Checkpoint]):
     """
     Train the model with optimizer, loss function and other things as per config.
@@ -154,8 +147,10 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
         last_epoch: int = checkpoint['epoch']
         env.best_val_loss = checkpoint['best_val_loss']
         model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
+        if checkpoint['optimizer_state_dict']:
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if checkpoint['lr_scheduler_state_dict']:
+            lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
 
     epoch_bar = tqdm(range(last_epoch + 1, config.epoch), unit="epoch")
     print(model)
@@ -278,7 +273,7 @@ def save_checkpoint(env: Env, checkpoint_file: Path):
         }
         torch.save(checkpoint, checkpoint_file)
 
-def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional[Dataset]) -> float:
+def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional[Dataset], checkpoint = Optional[Checkpoint]) -> float:
     """Start training and save config, model, loss curves to logs_dir/study_name/trail_id directory."""
     # Save config and loss
     start = datetime.now()
@@ -292,7 +287,7 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
     writer = SummaryWriter(log_dir=str(run_dir))
     # Log hyperparameters
     inf = float("+inf")
-    log_hparams(writer, extract_hparams(config), {
+    log_hparams(writer, extract_hparams(config, checkpoint), {
         "Train/Loss": inf,
         "Train/L1": inf,
         "Val/Loss": inf,
@@ -305,7 +300,7 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
         entity="bpanthi977",
         project=config.study_name,
         name=str(trial_id),
-        config=extract_hparams(config)
+        config=extract_hparams(config, checkpoint)
     )
     wandb_run.define_metric("Train/loss", summary="min")
     wandb_run.define_metric("Train/L1", summary="min")
@@ -366,12 +361,6 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
         # Load data, train and evaluate
         if not dataset:
             dataset = load_dataset(config.dataset)
-
-        # Restore checkpoint
-        checkpoint_path = run_dir.joinpath('checkpoint.pth')
-        checkpoint: Optional[Checkpoint] = None
-        if checkpoint_path.exists():
-            checkpoint = torch.load(checkpoint_path)
 
         try:
             log_gpu_utilization(interval=10, log_file=run_dir.joinpath('gpu_utilization.csv'), stop_flag=stop_fn, new_thread=True)

@@ -8,10 +8,18 @@ programmer to correct.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Union, Tuple
+from typing import List, Optional, Union, Tuple, TypedDict
 from pathlib import Path
 import re
 import traceback
+
+class Checkpoint(TypedDict):
+    epoch: int
+    best_val_loss: float
+    model_state_dict: dict
+    optimizer_state_dict: Optional[dict]
+    lr_scheduler_state_dict: Optional[dict]
+    continue_from: Optional[str]
 
 @dataclass
 class DatasetConfig:

@@ -10,13 +10,13 @@ import pyrallis
 from datetime import datetime
 import random
 import string
-from typing import Optional
+from typing import Optional, cast
 import torch
 import numpy as np
 
 from train import train_log
 from tune import tune
-from config import Config
+from config import Config, Checkpoint
 from validate_model import create_model_from_checkpoint, validate
 from lr_tune import run_lr_tune
 
@@ -30,7 +30,7 @@ def redirect_output(path: Path):
     os.dup2(log_file.fileno(), sys.stdout.fileno())
     os.dup2(log_file.fileno(), sys.stderr.fileno())
 
-def train(config: Config, dataset: Optional[Dataset], redirect_io: bool, checkpoint_path: Optional[Path]):
+def train(config: Config, dataset: Optional[Dataset], redirect_io: bool, checkpoint_arg: [Optional[Path], bool]):
     config = copy.deepcopy(config)
     config.tuning = None
 
@@ -41,17 +41,28 @@ def train(config: Config, dataset: Optional[Dataset], redirect_io: bool, checkpo
     trial_name = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + random_suffix
     run_dir = config.logs_dir.joinpath(config.study_name).joinpath(f"{trial_name}")
 
+    checkpoint_path, use_only_weights = checkpoint_arg
+    checkpoint: Optional[Checkpoint] = None
     if checkpoint_path:
         shutil.copytree(checkpoint_path, run_dir)
         with open(run_dir.joinpath("continue_from"), "w") as f:
-            f.writelines([checkpoint_path.name])
+            f.write(checkpoint_path.name +'\n' + f'use_only_weights={use_only_weights}')
+
+        # Restore checkpoint
+        checkpoint_pth = run_dir.joinpath('checkpoint.pth')
+        if checkpoint_pth.exists():
+            checkpoint = cast(Checkpoint, torch.load(checkpoint_pth))
+            checkpoint['continue_from'] = checkpoint_path.name
+            if use_only_weights:
+                checkpoint['lr_scheduler_state_dict'] = None
+                checkpoint['optimizer_state_dict'] = None
 
     run_dir.mkdir(parents=True, exist_ok=True)
     print(run_dir)
     if redirect_io:
         redirect_output(run_dir.joinpath("stdout.txt"))
 
-    evaluation_metric_value = train_log(config, trial_id=trial_name, callbacks=[], dataset=dataset)
+    evaluation_metric_value = train_log(config, trial_id=trial_name, callbacks=[], dataset=dataset, checkpoint=checkpoint)
     print(f"{config.train.evaluation_metric} = {evaluation_metric_value}")
 
 def set_all_seeds(seed: int = 42):
@@ -72,6 +83,7 @@ if __name__ == "__main__":
     parser.add_argument('-h', '--help', action='store_true')
     parser.add_argument('-c', '--config')
     parser.add_argument('--checkpoint')
+    parser.add_argument('--checkpoint-use-only-weights', action='store_true')
     parser.add_argument('--lr-tune', action='store_true')
     parser.add_argument('--validate', action='store_true')
     parser.add_argument('--create-model', action='store_true')
@@ -105,8 +117,9 @@ if __name__ == "__main__":
 
         for i in range(0, len(args_rest), 2):
             arg = args_rest[i]
-            if arg != "--train.epoch":
-                print(f"You can only override --train.epoch argument. Can't change {arg}.")
+            changable_flags = ['train.epoch', 'dataset.db_file', 'study_name']
+            if arg[2:] not in changable_flags:
+                print(f"You can only override f{','.join(changable_flags)} arguments. Can't change {arg}.")
                 exit(1)
 
     try:
@@ -132,7 +145,7 @@ if __name__ == "__main__":
     elif args.lr_tune:
         run_lr_tune(config)
     elif not args.tune: # just train
-        train(config, None, args.log_stdout, checkpoint_path)
+        train(config, None, args.log_stdout, [checkpoint_path, args.checkpoint_use_only_weights])
     else:
         tune(config, args.postgres)
 

@@ -1,8 +1,9 @@
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.tensorboard.summary import hparams
 import torch.nn as nn
+from typing import Optional
 
-from config import Config
+from config import Config, Checkpoint
 
 def get_loss_fn(loss: str):
     """Create loss function."""
@@ -15,7 +16,7 @@ def get_loss_fn(loss: str):
 
     assert False, f"Impossible value of loss function {loss}. Fix validate in TrainConfig."
 
-def extract_hparams(config: Config):
+def extract_hparams(config: Config, checkpoint: Optional[Checkpoint]):
     """Extracts hyperparameters from Config object."""
     hparams_dict = {
         "study_name": config.study_name,
@@ -35,7 +36,13 @@ def extract_hparams(config: Config):
     
     if config.train.model.hidden_layers:
          hparams_dict["model/hidden_layers"] = str(config.train.model.hidden_layers)
-         
+
+    if checkpoint:
+        hparams_dict["continue_from"] = checkpoint['continue_from']
+        hparams_dict["continue_epoch"] = checkpoint['epoch']
+        hparams_dict["continue_lr_scheduler_state"] = True if checkpoint['lr_scheduler_state_dict'] else False
+        hparams_dict["continue_optimizer_state"] = True if checkpoint['optimizer_state_dict'] else False
+
     return hparams_dict
 
 def log_hparams(writer: SummaryWriter, hparams_dict: dict, metrics: dict, global_step: int):
