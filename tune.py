@@ -42,11 +42,10 @@ def create_train_config(study: optuna.Trial, config: Config, input_dim: int) -> 
         if config.tuning.split != None:
             assert(config.tuning.split_num_groups), "split_num_groups can't be empty"
             split = config.tuning.split
-            l1, l1_sizes = suggest_layers(study, config, "pre_split", split[0])
             l2, l2_sizes = suggest_layers(study, config, "split", split[1])
-            l3, _= suggest_layers(study, config, "post_split", split[2])
-            hidden_layers = l1
             if len(l2) > 0:
+                l3, _= suggest_layers(study, config, "post_split", split[2])
+                l1, l1_sizes = suggest_layers(study, config, "pre_split", split[0])
                 # Ensure input dim can be evenly split
                 split_input_dim = l1_sizes[-1] if len(l1_sizes) > 0 else input_dim
                 groups = study.suggest_categorical("spilt_num_groups", config.tuning.split_num_groups)
@@ -55,9 +54,15 @@ def create_train_config(study: optuna.Trial, config: Config, input_dim: int) -> 
                     l1.append(f"linear({good_dim})")
                     l1_sizes.append(good_dim)
 
-                group_dim = l1_sizes[-1] // groups
+                split_input_dim = l1_sizes[-1] if len(l1_sizes) > 0 else input_dim
+                group_dim = split_input_dim // groups
                 join_dim = l2_sizes[-1] * groups
                 hidden_layers = l1 + [f"split({group_dim})"] + l2 + [f"join({join_dim})"] + l3
+            else:
+                # No split layer
+                assert(config.tuning.n_hidden_layers), "n_hidden_layers must be specified."
+                hidden_layers = suggest_layers(study, config, "hidden_layers", config.tuning.n_hidden_layers)[0]
+
         else:
             assert(config.tuning.n_hidden_layers), "n_hidden_layers must be specified."
             hidden_layers = suggest_layers(study, config, "hidden_layers", config.tuning.n_hidden_layers)[0]
