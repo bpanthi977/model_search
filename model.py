@@ -234,6 +234,22 @@ class Split(nn.Module):
     def __repr__(self):
         return f"{self.__class__.__name__}(group_size={self.group_size})"
 
+class SplitInterleave(nn.Module):
+    def __init__(self, group_size: int):
+        super().__init__()
+        self.group_size = group_size
+
+    def forward(self, x: torch.Tensor):
+        batch, features = x.shape
+        if features % self.group_size != 0:
+            raise ValueError(f"Invalid features size {features}. Not divisible by {self.group_size}")
+        ret = x.reshape(batch, self.group_size, features // self.group_size).transpose(-1,-2).contiguous()
+        return ret
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(group_size={self.group_size})"
+
+
 class Join(nn.Module):
     def __init__(self):
         super().__init__()
@@ -269,6 +285,8 @@ class MLP(nn.Module):
                 layers.append(MULT0(fan_in, layer_dim, dtype=torch.float64))
             elif layer_type == 'split':
                 layers.append(Split(layer_dim))
+            elif layer_type == 'split_interleave':
+                layers.append(SplitInterleave(layer_dim))
             elif layer_type == 'join':
                 layers.append(Join())
             else:

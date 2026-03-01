@@ -31,7 +31,7 @@ def check_member(name, val, lst):
 def parse_hidden_layers(hidden_layers: List[Union[str, int]]):
     result = []
     # MULT is deprecated after commit 9120d0a
-    layer_types = {'split', 'join', 'linear', 'NALU', 'NALUi1', 'NALUi2', 'MULT0', 'MULT'}
+    layer_types = {'split_interleave', 'split', 'join', 'linear', 'NALU', 'NALUi1', 'NALUi2', 'MULT0', 'MULT'}
     layer_act = {'I'}
     regex_match_types = '|'.join(layer_types)
     regex_match_act = "|".join(layer_act)
