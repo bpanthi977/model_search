@@ -45,6 +45,8 @@ def create_train_config(study: optuna.Trial, config: Config, input_dim: int) -> 
             l2, l2_sizes = suggest_layers(study, config, "split", split[1])
             if len(l2) > 0:
                 l3, _= suggest_layers(study, config, "post_split", split[2])
+                if len(l3) == 0:
+                    l3 = ["linear"]
                 l1, l1_sizes = suggest_layers(study, config, "pre_split", split[0])
                 # Ensure input dim can be evenly split
                 split_input_dim = l1_sizes[-1] if len(l1_sizes) > 0 else input_dim
