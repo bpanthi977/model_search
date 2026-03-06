@@ -295,7 +295,7 @@ class MLP(nn.Module):
         hl_details = parse_hidden_layers(config.hidden_layers)
         last_i = len(hl_details) - 1
         for (i, (layer_type, layer_dim, layer_activation)) in enumerate(hl_details):
-            if i == last_i:
+            if i == last_i and layer_dim == 0:
                 last_layer = layer_type
                 break
             add_layer(layer_type, layer_dim)
