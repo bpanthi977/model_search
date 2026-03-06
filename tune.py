@@ -151,7 +151,7 @@ def tune(config: Config, postgres: bool = False):
         new_config = dataclasses.replace(config, train=train_config, tuning=None)
         trial.set_user_attr("config", pyrallis.dump(config))
 
-        def pruning_callback(info):
+        def pruning_callback(env, info):
             epoch = info['epoch']
             if config.train.evaluation_metric == 'val_loss':
                 metric = info['val_loss']

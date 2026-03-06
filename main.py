@@ -14,7 +14,7 @@ from typing import Optional, cast
 import torch
 import numpy as np
 
-from train import train_log
+from train import train_log, save_checkpoint
 from tune import tune
 from config import Config, Checkpoint
 from validate_model import create_model_from_checkpoint, validate
@@ -30,7 +30,7 @@ def redirect_output(path: Path):
     os.dup2(log_file.fileno(), sys.stdout.fileno())
     os.dup2(log_file.fileno(), sys.stderr.fileno())
 
-def train(config: Config, dataset: Optional[Dataset], redirect_io: bool, checkpoint_arg: [Optional[Path], bool]):
+def train(config: Config, dataset: Optional[Dataset], redirect_io: bool, checkpoint_arg: tuple[Optional[Path], bool, int]):
     config = copy.deepcopy(config)
     config.tuning = None
 
@@ -41,7 +41,7 @@ def train(config: Config, dataset: Optional[Dataset], redirect_io: bool, checkpo
     trial_name = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + random_suffix
     run_dir = config.logs_dir.joinpath(config.study_name).joinpath(f"{trial_name}")
 
-    checkpoint_path, use_only_weights = checkpoint_arg
+    checkpoint_path, use_only_weights, checkpoint_every_n = checkpoint_arg
     checkpoint: Optional[Checkpoint] = None
     if checkpoint_path:
         shutil.copytree(checkpoint_path, run_dir)
@@ -62,7 +62,16 @@ def train(config: Config, dataset: Optional[Dataset], redirect_io: bool, checkpo
     if redirect_io:
         redirect_output(run_dir.joinpath("stdout.txt"))
 
-    evaluation_metric_value = train_log(config, trial_id=trial_name, callbacks=[], dataset=dataset, checkpoint=checkpoint)
+    def checkpoint_every_callback(env, info):
+        epoch = info['epoch'] # starts from 0
+        if (epoch + 1) % checkpoint_every_n == 0:
+            save_checkpoint(env, run_dir.joinpath(f"checkpoint-{epoch + 1}.pth"))
+
+    callbacks = []
+    if checkpoint_every_n != 0:
+        callbacks.append(checkpoint_every_callback)
+
+    evaluation_metric_value = train_log(config, trial_id=trial_name, callbacks=callbacks, dataset=dataset, checkpoint=checkpoint)
     print(f"{config.train.evaluation_metric} = {evaluation_metric_value}")
 
 def set_all_seeds(seed: int = 42):
@@ -84,6 +93,7 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--config')
     parser.add_argument('--checkpoint')
     parser.add_argument('--checkpoint-use-only-weights', action='store_true')
+    parser.add_argument('--checkpoint-every-n')
     parser.add_argument('--lr-tune', action='store_true')
     parser.add_argument('--validate', action='store_true')
     parser.add_argument('--create-model', action='store_true')
@@ -145,7 +155,10 @@ if __name__ == "__main__":
     elif args.lr_tune:
         run_lr_tune(config)
     elif not args.tune: # just train
-        train(config, None, args.log_stdout, [checkpoint_path, args.checkpoint_use_only_weights])
+        checkpoint_every_n = 0
+        if args.checkpoint_every_n:
+            checkpoint_every_n = int(args.checkpoint_every_n)
+        train(config, None, args.log_stdout, (checkpoint_path, args.checkpoint_use_only_weights, checkpoint_every_n))
     else:
         tune(config, args.postgres)
 

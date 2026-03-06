@@ -123,7 +123,7 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
     """
     Train the model with optimizer, loss function and other things as per config.
 
-    Calls each function in `callbacks` with a dict of epoch, {train, val}_{loss, time}.
+    Calls each function in `callbacks` with env and  a dict of epoch, {train, val}_{loss, time}.
     """
     train_dataset = TensorDataset(dataset.trainX, dataset.trainY)
     train_dataloader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
@@ -238,7 +238,7 @@ def train(dataset: Dataset, config: TrainConfig, callbacks, env: Env, checkpoint
         env.best_val_loss = min(env.best_val_loss, mean_val_loss)
         env.best_val_l1 = min(env.best_val_l1, mean_val_l1)
         for callback in callbacks:
-            callback({
+            callback(env, {
                 "epoch": epoch,
                 "train_loss": mean_train_loss,
                 "train_l1": mean_train_l1,
@@ -318,7 +318,7 @@ def train_log(config: Config, trial_id: int | str, callbacks, dataset = Optional
         w_train = csv.writer(f_train)
         w_val = csv.writer(f_val)
 
-        def callback(info):
+        def callback(_env, info):
             nonlocal last_info
             last_info = info
 
