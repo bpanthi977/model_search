@@ -93,22 +93,32 @@ def validate(config: Config, checkpoint_path: Path):
     return mean_val_loss
 
 def create_model_from_checkpoint(config: Config, checkpoint_path: Path):
-    checkpoint: Checkpoint = torch.load(checkpoint_path.joinpath('checkpoint.pth'))
-    if not checkpoint:
-        print(f"Invalid checkpoint directory {checkpoint_path}")
-        exit(1)
+    checkpoint_files = sorted(list(checkpoint_path.glob("checkpoint*.pth")))
 
-    dataset = load_dataset(config.dataset)
-    model = create_model(config.train, dataset)
-    model.load_state_dict(state_dict=checkpoint['model_state_dict'])
-    print(f"Saved best val loss: {checkpoint['best_val_loss']}")
+    for ckpt_file in checkpoint_files:
+        suffix = ckpt_file.name[len("checkpoint") : -len(".pth")]
+        model_path = checkpoint_path.joinpath(f"model{suffix}.pt")
 
-    model.eval()
-    for param in model.parameters():
-        param.requires_grad = False
-    model.cpu()
-    model.double()
-    model_script = torch.jit.script(model)
-    model_path = checkpoint_path.joinpath("model.pt")
-    model_script.save(model_path)
-    print(f"Model saved to: {model_path}")
+        if model_path.exists():
+            continue
+
+        print(f"Converting {ckpt_file.name} to {model_path.name}...")
+        checkpoint: Checkpoint = torch.load(ckpt_file, map_location="cpu")
+        if not checkpoint:
+            print(f"Invalid checkpoint {ckpt_file}")
+            continue
+
+        dataset = load_dataset(config.dataset)
+        model = create_model(config.train, dataset)
+
+        model.load_state_dict(state_dict=checkpoint["model_state_dict"])
+        print(f"Saved best val loss: {checkpoint['best_val_loss']}")
+
+        model.eval()
+        for param in model.parameters():
+            param.requires_grad = False
+        model.cpu()
+        model.double()
+        model_script = torch.jit.script(model)
+        model_script.save(model_path)
+        print(f"Model saved to: {model_path}")
