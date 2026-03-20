@@ -31,6 +31,7 @@ Arguments:
 """
 
 import argparse
+import re
 import sys
 from pathlib import Path
 from typing import cast
@@ -81,7 +82,20 @@ def main():
         print(f"Checkpoint path doesn't exist: {checkpoint_path}")
         exit(1)
 
-    config_path = checkpoint_path.joinpath('config.yaml')
+    if checkpoint_path.is_file():
+        m = re.fullmatch(r'checkpoint(.*?)\.pth', checkpoint_path.name)
+        if not m:
+            print(f"Checkpoint file name must match 'checkpoint*.pth', got: {checkpoint_path.name}")
+            exit(1)
+        run_dir = checkpoint_path.parent
+        ckpt_file = checkpoint_path
+        activations_suffix = m.group(1)   # e.g. "" / "_best" / "-100"
+    else:
+        run_dir = checkpoint_path
+        ckpt_file = run_dir / 'checkpoint.pth'
+        activations_suffix = ''
+
+    config_path = run_dir / 'config.yaml'
     if not config_path.exists():
         print(f"Config path doesn't exist: {config_path}")
         exit(1)
@@ -105,7 +119,6 @@ def main():
     model = create_model(config.train, dataset)
     
     # 3. Load weights
-    ckpt_file = checkpoint_path.joinpath('checkpoint.pth')
     if not ckpt_file.exists():
         print(f"Checkpoint file doesn't exist: {ckpt_file}")
         exit(1)
@@ -176,7 +189,7 @@ def main():
             model(x)
 
     # 6. Plotting
-    out_dir = checkpoint_path.joinpath("figs", "activations")
+    out_dir = run_dir / "figs" / f"activations{activations_suffix}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Save the command to cmd.sh for reproducibility
