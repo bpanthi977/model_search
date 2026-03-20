@@ -296,9 +296,10 @@ def update_hidden_layers_config(config, linear_positions, keep_output):
     config.train.model.hidden_layers = new_hidden_layers
 
 
-def print_summary(model, linear_positions, keep_output):
-    print(f"\n{'Layer':<15} {'Original':>10} {'Pruned':>10} {'% Kept':>8}")
-    print("-" * 47)
+def format_summary(model, linear_positions, keep_output):
+    lines = []
+    lines.append(f"\n{'Layer':<15} {'Original':>10} {'Pruned':>10} {'% Kept':>8}")
+    lines.append("-" * 47)
     total_orig = 0
     total_pruned = 0
     for i, seq_idx in enumerate(linear_positions):
@@ -319,14 +320,19 @@ def print_summary(model, linear_positions, keep_output):
             label = ""
 
         pct = 100.0 * pruned / orig if orig > 0 else 0.0
-        print(f"model.{seq_idx:<9} {orig:>10} {pruned:>10} {pct:>7.1f}%  {label}")
+        lines.append(f"model.{seq_idx:<9} {orig:>10} {pruned:>10} {pct:>7.1f}%  {label}")
         total_orig += orig
         total_pruned += pruned
 
     pct_total = 100.0 * total_pruned / total_orig if total_orig > 0 else 0.0
-    print("-" * 47)
-    print(f"{'Total':<15} {total_orig:>10} {total_pruned:>10} {pct_total:>7.1f}%")
-    print()
+    lines.append("-" * 47)
+    lines.append(f"{'Total':<15} {total_orig:>10} {total_pruned:>10} {pct_total:>7.1f}%")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def print_summary(model, linear_positions, keep_output):
+    print(format_summary(model, linear_positions, keep_output))
 
 
 def main():
@@ -399,7 +405,8 @@ def main():
         sys.exit(0)
 
     # Summary
-    print_summary(model, linear_positions, keep_output)
+    neuron_summary = format_summary(model, linear_positions, keep_output)
+    print(neuron_summary)
 
     # Build pruned state dict
     pruned_sd = build_pruned_state_dict(model, linear_positions, keep_output)
@@ -454,12 +461,15 @@ def main():
     orig_val_loss = checkpoint_data.get('best_val_loss', float('nan'))
     orig_params = sum(p.numel() for p in model.parameters())
     pruned_params = sum(p.numel() for p in pruned_model.parameters())
-    print(f"{'':20} {'Original':>20} {'Pruned':>20}")
-    print("-" * 62)
-    print(f"{'Val loss':20} {orig_val_loss:>20.6f} {pruned_val_loss:>20.6f}")
-    print(f"{'Parameters':20} {orig_params:>20,} {pruned_params:>20,}")
-    print(f"{'Hidden layers':20} {str(orig_hidden_layers):>20} {str(config.train.model.hidden_layers):>20}")
-    print()
+    comparison_table = "\n".join([
+        f"{'':20} {'Original':>20} {'Pruned':>20}",
+        "-" * 62,
+        f"{'Val loss':20} {orig_val_loss:>20.6f} {pruned_val_loss:>20.6f}",
+        f"{'Parameters':20} {orig_params:>20,} {pruned_params:>20,}",
+        f"{'Hidden layers':20} {str(orig_hidden_layers):>20} {str(config.train.model.hidden_layers):>20}",
+        "",
+    ])
+    print(comparison_table)
 
     # Save
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -470,6 +480,21 @@ def main():
     print(f"Saved config  -> {config_out}")
 
     threshold_str = f"{args.threshold:g}"
+
+    info_out = output_dir / f'prune_info_t{threshold_str}_.txt'
+    dataset_info = "\n".join([
+        "Dataset",
+        f"  db_file : {config.dataset.db_file}",
+        f"  sample  : {config.dataset.sample}",
+        f"  subset  : {config.dataset.subset} batches (-1 = all)",
+        "",
+    ])
+    with open(info_out, 'w') as f:
+        f.write(dataset_info)
+        f.write(neuron_summary + "\n")
+        f.write(comparison_table)
+    print(f"Saved prune info  -> {info_out}")
+
     ckpt_out = output_dir / f'checkpoint_t{threshold_str}_.pth'
     torch.save({
         'epoch': checkpoint_data.get('epoch', 0),
