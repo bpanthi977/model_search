@@ -207,11 +207,21 @@ def main():
         if num_neurons == 1:
             cat_acts = cat_acts.reshape(-1, 1)
 
+        # Compute per-neuron summary statistics on raw (unfiltered) activations
+        raw_acts = cat_acts
+        stats_df = pd.DataFrame({
+            'neuron': [f"N{j}" for j in range(num_neurons)],
+            'mean': np.mean(raw_acts, axis=0),
+            'min': np.min(raw_acts, axis=0),
+            'max': np.max(raw_acts, axis=0),
+            'std': np.std(raw_acts, axis=0),
+        })
+
         # Apply percentile filtering per neuron
         if args.percentile < 100.0:
             lower_bound = np.percentile(cat_acts, (100.0 - args.percentile) / 2.0, axis=0)
             upper_bound = np.percentile(cat_acts, 100.0 - (100.0 - args.percentile) / 2.0, axis=0)
-            
+
             # Mask outliers with NaN
             mask = (cat_acts >= lower_bound) & (cat_acts <= upper_bound)
             cat_acts = np.where(mask, cat_acts, np.nan)
@@ -267,6 +277,10 @@ def main():
         plt.savefig(out_path)
         plt.close()
         print(f"Saved {out_path}")
+
+        csv_path = out_dir.joinpath(f"{safe_name}.csv")
+        stats_df.to_csv(csv_path, index=False)
+        print(f"Saved {csv_path}")
 
 if __name__ == "__main__":
     main()

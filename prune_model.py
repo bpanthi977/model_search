@@ -25,6 +25,7 @@ from config import Config
 from dataset import load_dataset
 from model import MULT0, MULT1, NALU, NALUi1, NALUi2
 from train import create_model
+from utils import get_loss_fn
 
 # Layer types whose output dimension can be pruned
 PRUNABLE_TYPES = (nn.Linear, NALU, NALUi1, NALUi2, MULT0, MULT1)
@@ -404,6 +405,7 @@ def main():
     pruned_sd = build_pruned_state_dict(model, linear_positions, keep_output)
 
     # Update config
+    orig_hidden_layers = list(config.train.model.hidden_layers)
     update_hidden_layers_config(config, linear_positions, keep_output)
 
     # Build pruned model and load weights
@@ -420,18 +422,44 @@ def main():
         shuffle=False,
     )
     device = model.get_device()
-    with torch.no_grad():
-        x_batch, _ = next(iter(val_loader))
-        x_batch = x_batch.to(device)
-        out_orig = model(x_batch)
-        out_pruned = pruned_model(x_batch)
 
-    if torch.allclose(out_orig, out_pruned, atol=1e-10):
+    loss_fn = get_loss_fn(config.train.loss)
+    total_val_loss = 0.0
+    max_diff = 0.0
+    n_samples = 0
+    with torch.no_grad():
+        for x_batch, y_batch in tqdm(val_loader):
+            x_batch = x_batch.to(device)
+            y_batch = y_batch.to(device)
+            batch_size = x_batch.shape[0]
+
+            out_orig = model.model(model.normalize(x_batch, model.normalizeX))
+            out_pruned = pruned_model.model(pruned_model.normalize(x_batch, pruned_model.normalizeX))
+            y_norm = pruned_model.normalize(y_batch, pruned_model.normalizeY)
+
+            total_val_loss += loss_fn(out_pruned, y_norm).item() * batch_size
+            max_diff = max(max_diff, (out_orig - out_pruned).abs().max().item())
+            n_samples += batch_size
+
+    pruned_val_loss = total_val_loss / n_samples
+    print()
+    print(f"Pruned model validation loss: {pruned_val_loss}")
+
+    if max_diff <= 1e-10:
         print("Parity check PASSED: outputs match within atol=1e-10.\n")
     else:
-        max_diff = (out_orig - out_pruned).abs().max().item()
         print(f"WARNING: Parity check FAILED (max diff = {max_diff:.2e}). "
               f"This may indicate non-zero neurons were pruned.\n")
+
+    orig_val_loss = checkpoint_data.get('best_val_loss', float('nan'))
+    orig_params = sum(p.numel() for p in model.parameters())
+    pruned_params = sum(p.numel() for p in pruned_model.parameters())
+    print(f"{'':20} {'Original':>20} {'Pruned':>20}")
+    print("-" * 62)
+    print(f"{'Val loss':20} {orig_val_loss:>20.6f} {pruned_val_loss:>20.6f}")
+    print(f"{'Parameters':20} {orig_params:>20,} {pruned_params:>20,}")
+    print(f"{'Hidden layers':20} {str(orig_hidden_layers):>20} {str(config.train.model.hidden_layers):>20}")
+    print()
 
     # Save
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -441,10 +469,11 @@ def main():
         f.write(pyrallis.dump(config))
     print(f"Saved config  -> {config_out}")
 
-    ckpt_out = output_dir / 'checkpoint.pth'
+    threshold_str = f"{args.threshold:g}"
+    ckpt_out = output_dir / f'checkpoint_t{threshold_str}_.pth'
     torch.save({
         'epoch': checkpoint_data.get('epoch', 0),
-        'best_val_loss': checkpoint_data.get('best_val_loss', None),
+        'best_val_loss': pruned_val_loss,
         'model_state_dict': pruned_model.state_dict(),
         'optimizer_state_dict': None,
         'lr_scheduler_state_dict': None,
