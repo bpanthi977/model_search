@@ -33,6 +33,7 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import seaborn as sns
+import random
 
 def get_in_name(idx):
     if idx < 8: return f"x[{idx}]"
@@ -116,16 +117,26 @@ def evaluate_model(model, X_np):
         Y_pred = model(X_t).cpu().numpy()
     return Y_pred
 
+def set_all_seeds(seed: int = 42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Test PyTorch model against true EVD function.")
     parser.add_argument('--model', required=True, help="Path to the .pt TorchScript model.")
     parser.add_argument('--dataset', default=None, help="Path to .h5 or .csv file to sample baseline.")
+    parser.add_argument('--seed', default=None, help="Seed for random sampling.")
     parser.add_argument('--vary-in', nargs='*', type=int, default=[], help="List of input indices (0-23) to vary and plot.")
     parser.add_argument('--out-dir', default='evd_test_results', help="Output directory for plots.")
     parser.add_argument('--range', nargs=2, type=float, default=[-1.0, 1.0], help="Min and max for sweep.")
     parser.add_argument('--steps', type=int, default=100, help="Number of steps in sweep.")
     
     args = parser.parse_args()
+    set_all_seeds(int(args.seed or '42'))
     
     # Setup
     out_dir = Path(args.out_dir)
