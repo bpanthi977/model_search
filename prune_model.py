@@ -166,10 +166,16 @@ def build_pruned_state_dict(model, linear_positions, keep_output):
             if ki is not None:
                 prev_out = _out_dim(model.model[prev_seq])
                 curr_in = _in_dim(model.model[seq_idx])
-                # If curr_in > prev_out and divisible, a Join expanded groups
-                if curr_in != prev_out and prev_out > 0 and curr_in % prev_out == 0:
-                    n_groups = curr_in // prev_out
-                    ki = torch.cat([ki + g * prev_out for g in range(n_groups)])
+                if curr_in != prev_out:
+                    if prev_out > 0 and curr_in % prev_out == 0:
+                        # Join expanded groups: replicate indices for each group
+                        n_groups = curr_in // prev_out
+                        ki = torch.cat([ki + g * prev_out for g in range(n_groups)])
+                    else:
+                        # Dimension mismatch (e.g. Split reduced input dim).
+                        # Cannot map prev keep_output indices into this layer's
+                        # input space — keep all input columns.
+                        ki = None
             keep_input[seq_idx] = ki
 
     # Map BatchNorm seq_idx -> keep indices inherited from the preceding linear layer
