@@ -288,6 +288,8 @@ def main():
         if not safe_name: safe_name = "output"
         out_path = out_dir.joinpath(f"{safe_name}.png")
         plt.savefig(out_path)
+        plt.savefig(out_dir.joinpath(f"{safe_name}.pdf"))
+        plt.savefig(out_dir.joinpath(f"{safe_name}.svg"))
         plt.close()
         print(f"Saved {out_path}")
 
