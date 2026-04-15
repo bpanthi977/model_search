@@ -1,7 +1,7 @@
 #!/bin/bash
 
 show_help() {
-    echo "Usage: $0 <path_to_model.pt> <grid_size> [experiment_dir]"
+    echo "Usage: $0 <path_to_model.pt> <grid_size> <experiment_dir> <max_iters>"
     echo "Example: $0 /path/to/model.pt 30"
     echo "Example with custom dir: $0 /path/to/any_model.pt 30 my_custom_dir"
     exit 1
@@ -11,7 +11,7 @@ if [ $# -lt 2 ] || [[ " $@ " =~ " --help " ]]; then
     show_help
 fi
 
-LULESH_DIR=/mnt/SharedOne/bpanthi/LULESH
+LULESH_DIR=/mnt/SharedOne/bpanthi/proxy-apps/LULESH
 SCRIPT_DIR=/mnt/SharedOne/bpanthi/model_search
 
 model=$1 # Path to the model.pt file
