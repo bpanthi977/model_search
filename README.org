@@ -1,8 +1,16 @@
 * model_search
 
-Train Neural Networks and explore hyperparamters space for tuning.
+Train Neural Networks and explore hyperparameter space for tuning.
 
-All training is driven by yaml config files and command line argumetns. The structure of yaml configs is defined in config.py.
+This project studies the use of *local surrogate models* to accelerate HPC applications. All training is driven by YAML config files and command line arguments; the structure of YAML configs is defined in =config.py=.
+
+* Documentation
+
+See the =[[docs/index.md][docs/]]= directory for full documentation:
+
+- =[[docs/research_overview.md][research_overview.md]]= — What the research is about, what was tried, and key findings.
+- =[[docs/codebase_guide.md][codebase_guide.md]]= — All key files, config system, dataset format, model layer types, checkpoint system.
+- =[[docs/workflow.md][workflow.md]]= — Step-by-step guide: profiling → data collection → hyperparameter search → pruning → LULESH evaluation.
 
 * Dependencies and setup
 
@@ -13,7 +21,7 @@ This project uses [[https://docs.astral.sh/uv/][uv]] to manage dependencies.
 
 * Training
 
-1. Create a config file. See =configs/hgf_model_strcuture.yaml= for example.
+1. Create a config file. See =configs/hgf_model_structure.yaml= for example.
 2. Run the main.py script:
    #+begin_src shell
    source .venv/bin/activate
@@ -24,28 +32,67 @@ This project uses [[https://docs.astral.sh/uv/][uv]] to manage dependencies.
 
 3. The logs will be saved in =logs/hgf-20p/<date>-<time>-<random_string>/=
 
+Override any config field on the command line:
+#+begin_src shell
+python main.py --config configs/hgf_model_structure.yaml --train.model.activation tanh --train.epoch 200
+#+end_src
 
-If you want to change a hyperparameter, change it in the config =yaml= file or specify that in the command line argument:
+Resume training from a checkpoint:
+#+begin_src shell
+python main.py --checkpoint logs/hgf-20p/20260101-120000-AbCd/
+#+end_src
 
-   #+begin_src shell
-   python main.py --config configs/hgf_model_structure.yaml --train.model.activation tanh
-   #+end_src
+Validate a checkpoint on the dataset:
+#+begin_src shell
+python main.py --validate --checkpoint logs/hgf-20p/20260101-120000-AbCd/
+#+end_src
+
+Export a TorchScript =model.pt= from a checkpoint:
+#+begin_src shell
+python main.py --create-model --checkpoint logs/hgf-20p/20260101-120000-AbCd/
+#+end_src
+
+* Hyperparameter Search
+
+Bayesian hyperparameter tuning:
+#+begin_src shell
+python main.py --tune --config configs/hgf_model_structure.yaml
+#+end_src
+
+Grid search over hyperparameter combinations:
+#+begin_src shell
+python grid_search.py --config configs/hgf_model_structure.yaml --grid configs/hgf_model_structure_01.csv --wait --shared-memory
+#+end_src
+
+- =--shared-memory= shares the dataset tensor across training processes (less RAM demand).
+- =--wait= blocks until all runs complete (useful for SLURM/PBS job submission).
+
+* Visualize → Prune → Export
+
+After training, check for dead neurons, prune them, and export:
+#+begin_src shell
+python visualize_activations.py --checkpoint logs/hgf-20p/20260101-120000-AbCd/ --dataset.subset -1
+python prune_model.py --checkpoint logs/hgf-20p/20260101-120000-AbCd/ --threshold 1e-9
+python main.py --create-model --checkpoint logs/hgf-20p/20260101-120000-AbCd_pruned/
+#+end_src
+
+See =[[docs/workflow.md][docs/workflow.md]]= for the full workflow with explanation.
+
 * Code Organization
 
-- main.py :: is the CLI for training the models
-- model.py :: defines network (initialization, activation, hidden layers)
-- train.py :: defines optimizer, loss function and training loop. =train_log= save the loss curves, model and other info to logs folder
-- config.py :: defines the config (model structure, optimizer, dataset, epochs, batch_size, ...)
-- logs.py :: Utility functions to parse logs
-- grid_search.py :: Runs training across all combinations of hyperparameters as specified by grid csv file. See =configs/hgf_model_structure_01.csv= for example. Each line of csv specifies a command line argument to main.py and its possible values. =grid_search.py= just runs the main.py script with all the combination of those arguments.
-
-  #+begin_src shell
-  python grid_search.py --config configs/hgf_model_structure.yaml --grid configs/hgf_model_structure_01.csv --wait --shared-memory
-  #+end_src
-
-
-  - =--shared-memory= means the dataset will be shared by all the training processes. This mean you can train many models at once with less RAM demand.
-
-  - =--wait= means the grid_search.py script will wait for all the training processes to complete before exiting. This is useful when submitting jobs through SLURM or PBS.
-
-- =tune.py= :: Bayesian optimization (currently not used)
+- =main.py= :: CLI entry point — dispatches to train, validate, tune, or export.
+- =model.py= :: MLP model builder. Defines all layer types (Linear, NALU, MULT, Split, Join).
+- =train.py= :: Optimizer setup, training loop, checkpoint saving. =train_log= saves loss curves, model, and metadata to the logs folder.
+- =config.py= :: All config dataclasses. Defines what YAML fields are valid.
+- =dataset.py= :: HDF5 dataset loader.
+- =tune.py= :: Bayesian hyperparameter tuning via Optuna.
+- =grid_search.py= :: Runs training across all combinations of hyperparameters specified by a grid CSV file. See =configs/hgf_model_structure_01.csv= for example.
+- =visualize_activations.py= :: Captures post-activation outputs via forward hooks and plots them as violin plots. Used to identify dead neurons before pruning.
+- =prune_model.py= :: Removes dead neurons from a trained checkpoint. Slices weight matrices and saves a new smaller checkpoint.
+- =validate_model.py= :: Evaluates a checkpoint; generates error histograms.
+- =test_evd_model.py= :: Detailed analysis of EVD models: Jacobian heatmaps and input sweep plots.
+- =lr_tune.py= :: LR range test — sweeps LR from 1e-6 to 10 and plots loss.
+- =visualize.py= :: Plots loss curves and weight matrices.
+- =energy.py= :: Visualizes LULESH energy output differences.
+- =logs.py= :: Utilities to read and compare multiple training run logs.
+- =utils.py= :: Loss functions and hyperparameter extraction helpers.
