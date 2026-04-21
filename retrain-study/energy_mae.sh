@@ -69,4 +69,4 @@ echo "$formatted_time" >> "$experiment_dir/execution_time.txt"
 source $SCRIPT_DIR/.venv/bin/activate
 
 # Print the output of the following program and store the output in $experiment_dir/energy_mae.txt
-python $SCRIPT_DIR/energy.py --original $LULESH_DIR/Energy_Original-$grid_size.bin --model "$experiment_dir/Energy-$model_name-$grid_size.bin" --visualize | tee "$experiment_dir/energy_mae.txt"
+python $SCRIPT_DIR/energy.py --original $LULESH_DIR/logs/Energy_Original-$grid_size.bin --model "$experiment_dir/Energy-$model_name-$grid_size.bin" --visualize | tee "$experiment_dir/energy_mae.txt"
